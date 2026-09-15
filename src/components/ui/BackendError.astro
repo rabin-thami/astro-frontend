@@ -1,0 +1,29 @@
+---
+import type { GraphQLStatus } from "../../lib/graphql/client";
+
+interface Props {
+  status: GraphQLStatus;
+}
+
+const MESSAGES: Record<GraphQLStatus, string> = {
+  ok: "",
+  config: "WORDPRESS_GRAPHQL_URL is not configured.",
+  forbidden:
+    "The GraphQL endpoint rejected our credentials (check GRAPHQL_SECRET / X-PatrikaOS-Key).",
+  unreachable: "WordPress is not reachable. Is the docker stack up?",
+  graphql: "WordPress responded, but the GraphQL schema returned errors.",
+};
+
+const { status } = Astro.props;
+---
+
+{
+  status !== "ok" && (
+    <div class="mx-auto my-16 max-w-xl rounded border border-destructive/30 bg-card p-6 text-center">
+      <h1 class="text-lg font-bold text-destructive font-khand">
+        Backend unavailable
+      </h1>
+      <p class="mt-2 text-sm text-muted-foreground">{MESSAGES[status]}</p>
+    </div>
+  )
+}

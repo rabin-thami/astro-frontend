@@ -1,0 +1,44 @@
+---
+import { getPostsByCategory } from "../../lib/graphql/queries/getPostsByCategory";
+import CardThumbnail from "../cards/CardThumbnail.astro";
+
+interface Props {
+  categories: Array<{ name: string; slug: string }>;
+  currentPostId: number;
+}
+
+const { categories, currentPostId } = Astro.props;
+
+let related: Awaited<ReturnType<typeof getPostsByCategory>> = [];
+if (categories.length > 0) {
+  const posts = await getPostsByCategory(categories[0].slug, 7);
+  related = posts.filter((p) => p.databaseId !== currentPostId).slice(0, 6);
+}
+---
+
+{
+  related.length > 0 && (
+    <section class="mt-10">
+      <div class="mb-6 border-b-2 border-primary pb-2">
+        <h2 class="font-khand text-primary text-2xl font-semibold">
+          सम्बन्धित खबर
+        </h2>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 font-mukta">
+        {related.map((post) => (
+          <CardThumbnail
+            title={post.title}
+            href={post.link}
+            imageUrl={post.featuredImage?.node.sourceUrl}
+            imageWidth={post.featuredImage?.node.mediaDetails?.width ?? undefined}
+            imageHeight={post.featuredImage?.node.mediaDetails?.height ?? undefined}
+            imageAlt={post.featuredImage?.node.altText ?? post.title}
+            timestamp={post.dateGmt}
+            layout="vertical"
+          />
+        ))}
+      </div>
+    </section>
+  )
+}

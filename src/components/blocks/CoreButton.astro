@@ -1,0 +1,25 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import SmartLink from "../ui/SmartLink.astro";
+import { buttonClasses } from "./button-classes";
+
+interface Props {
+  block: BlockOf<"CoreButton">;
+}
+const { block } = Astro.props;
+const { text, url, linkTarget } = block.attributes;
+const isBlank = linkTarget === "_blank";
+---
+
+{
+  url && text && (
+    <SmartLink
+      href={url}
+      target={isBlank ? "_blank" : undefined}
+      rel={isBlank ? "noopener noreferrer" : undefined}
+      class={buttonClasses()}
+    >
+      {text}
+    </SmartLink>
+  )
+}

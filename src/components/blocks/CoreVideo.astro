@@ -1,0 +1,33 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreVideo">;
+}
+
+const { block } = Astro.props;
+const { src, caption, poster, autoplay, loop, muted, controls, preload } =
+  block.attributes;
+---
+
+{src && (
+  <figure class="my-6">
+    <video
+      class="w-full rounded-md bg-black"
+      controls={controls ?? true}
+      preload={preload ?? "metadata"}
+      playsinline
+      src={src}
+      poster={poster || undefined}
+      autoplay={autoplay || undefined}
+      loop={loop || undefined}
+      muted={muted || undefined}
+    />
+    {caption && (
+      <figcaption class="text-muted-foreground mt-2 text-center text-sm">
+        <RichText html={caption} />
+      </figcaption>
+    )}
+  </figure>
+)}

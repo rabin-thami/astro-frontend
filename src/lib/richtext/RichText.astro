@@ -1,0 +1,32 @@
+---
+/**
+ * Renders WP inline HTML (paragraph/quote/heading content).
+ *
+ * Admin-authored CMS HTML is sanitized (scripts, styles, iframes, event
+ * handlers and javascript: URLs stripped) and rendered via set:html.
+ * Astro frontmatter cannot contain JSX, so there is no element-tree
+ * renderer here — the allowlist approach lives in the sanitizer below.
+ */
+export interface Props {
+  html: string | null | undefined;
+  as?: string;
+  class?: string;
+}
+
+const { html, as = 'span', class: className } = Astro.props;
+
+function sanitize(dirty: string): string {
+  return dirty
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<style[\s\S]*?<\/style\s*>/gi, '')
+    .replace(/<iframe[\s\S]*?(<\/iframe\s*>|\/>)/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '')
+    .trim();
+}
+
+const clean = html ? sanitize(html) : '';
+const Tag = as;
+---
+
+{clean && <Tag class={className} set:html={clean} />}

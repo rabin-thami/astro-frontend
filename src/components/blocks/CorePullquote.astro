@@ -1,0 +1,28 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import { stripParagraphTags } from "../../lib/richtext/strip";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CorePullquote">;
+}
+const { block } = Astro.props;
+const { pullquoteValue, citation } = block.attributes;
+---
+
+{
+  pullquoteValue && (
+    <blockquote class="my-8 border-t-2 border-b-2 border-primary py-4 text-center font-mukta">
+      <RichText
+        html={stripParagraphTags(pullquoteValue)}
+        as="p"
+        class="text-xl md:text-2xl font-medium leading-snug text-primary-dark"
+      />
+      {citation && (
+        <cite class="mt-3 block text-sm text-muted-foreground not-italic">
+          — <RichText html={citation} />
+        </cite>
+      )}
+    </blockquote>
+  )
+}

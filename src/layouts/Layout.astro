@@ -1,0 +1,214 @@
+---
+import "../styles/global.css";
+import Header from "../components/layout/Header.astro";
+import Footer from "../components/layout/Footer.astro";
+import { getThemeHead } from "../lib/graphql/queries/getTheme";
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Social-card fields; OG/Twitter tags render when an image resolves. */
+  ogImage?: string;
+  ogImageAlt?: string;
+  ogImageWidth?: number;
+  ogImageHeight?: number;
+  ogType?: string;
+  canonical?: string;
+}
+
+const {
+  title = "Patrika",
+  description = "Fast, factual, digital news.",
+  ogImage,
+  ogImageAlt,
+  ogImageWidth,
+  ogImageHeight,
+  ogType = "article",
+  canonical,
+} = Astro.props;
+
+// Prefetched per request by src/middleware.ts; fallback keeps the layout
+// usable standalone (tests, isolated renders).
+const themeHead = Astro.locals.themeHead ?? (await getThemeHead());
+// WP first: dedicated favicon, then site logo. Static /favicon.svg only when WP has neither.
+const wpIconSrc = themeHead.faviconUrl.trim() || themeHead.logoUrl.trim();
+
+/**
+ * CMS-driven colors: override the :root tokens from Theme > Colors when the
+ * publisher customized them (getThemeHead nulls WP-default values). The menu
+ * bar is the dominant brand surface, so a customized headerBg takes precedence
+ * over the accent as --color-primary.
+ */
+function darkenHex(hex: string, amount = 0.18): string {
+  const c = hex.replace('#', '');
+  const ch = (i: number) => Math.round(parseInt(c.slice(i, i + 2), 16) * (1 - amount)).toString(16).padStart(2, '0');
+  return `#${ch(0)}${ch(2)}${ch(4)}`;
+}
+
+const colors = themeHead.colors;
+// og:image resolves per page; the theme logo guarantees every shared link
+// carries at least a branded preview.
+const resolvedOgImage = ogImage ?? (themeHead.logoUrl.trim() || undefined);
+const brandColor = colors.headerBg ?? colors.primary;
+const rootVars: string[] = [];
+if (brandColor) {
+  rootVars.push(`--color-primary:${brandColor}`, `--color-primary-dark:${darkenHex(brandColor)}`);
+}
+if (colors.headerText) {
+  rootVars.push(`--color-primary-foreground:${colors.headerText}`);
+}
+if (colors.background) {
+  rootVars.push(`--color-background:${colors.background}`);
+}
+if (colors.text) {
+  rootVars.push(`--color-foreground:${colors.text}`, `--color-card-foreground:${colors.text}`);
+}
+const themeColorMeta = colors.toolbar ?? brandColor;
+const rootOverrideCss = rootVars.length > 0 ? `:root{${rootVars.join(';')}}` : '';
+
+function isSvgUrl(url: string): boolean {
+  return url.split("?")[0].toLowerCase().endsWith(".svg") || url.startsWith("data:image/svg");
+}
+
+/**
+ * Make a WP-uploaded SVG adapt to the browser tab theme (dark tab -> white
+ * mark, light tab -> dark mark) without touching assets/.
+ * - `fill="currentColor"` paths follow the injected :root color.
+ * - Fixed dark fills (e.g. the uploaded logo's #17181C ink) are remapped to an
+ *   adaptive pair via CSS (presentation attributes lose to any stylesheet
+ *   rule). Light/accent fills like the gold square are left untouched.
+ * SVGs with fixed fills are otherwise left as the designer made them.
+ * Scripts/event handlers are stripped before inlining as a data: URI.
+ */
+function svgLuminance(hex: string): number {
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map((ch) => ch + ch).join('');
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const r = parseInt(c.slice(0, 2), 16) / 255;
+  const g = parseInt(c.slice(2, 4), 16) / 255;
+  const b = parseInt(c.slice(4, 6), 16) / 255;
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+async function toAdaptiveSvgDataUri(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    let svg = await res.text();
+    if (!svg.toLowerCase().includes("<svg") || svg.length > 100_000) return null;
+    if (!contentType.includes("svg") && !isSvgUrl(url)) return null;
+    // Strip executable content.
+    svg = svg
+      .replace(/<script[\s\S]*?<\/script\s*>/gi, "")
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/javascript:/gi, "");
+    if (!svg.toLowerCase().includes("prefers-color-scheme")) {
+      // Collect fixed dark fills to remap (deduped case-insensitively).
+      const seen = new Map<string, string>();
+      for (const m of svg.matchAll(/fill\s*=\s*["'](#[0-9a-fA-F]{3,6})["']/g)) {
+        const hex = m[1];
+        const key = hex.toLowerCase();
+        if (!seen.has(key) && svgLuminance(hex) < 0.25) seen.set(key, hex);
+      }
+      let css = `:root{color:#171717}`;
+      let darkCss = `:root{color:#FFFFFF}`;
+      for (const [, hex] of seen) {
+        const sel = `[fill="${hex}"]`;
+        const selLower = `[fill="${hex.toLowerCase()}"]`;
+        const sels = selLower === sel ? sel : `${sel},${selLower}`;
+        css += `${sels}{fill:${hex}}`;
+        darkCss += `${sels}{fill:#FFFFFF}`;
+      }
+      const adaptiveStyle = `<style>${css}@media (prefers-color-scheme: dark){${darkCss}}</style>`;
+      svg = svg.replace(/<svg([^>]*)>/i, "<svg$1>" + adaptiveStyle);
+    }
+    return "data:image/svg+xml," + encodeURIComponent(svg).replace(/'/g, "%27");
+  } catch {
+    return null;
+  }
+}
+
+function faviconType(url: string): string | undefined {
+  if (url.startsWith("data:image/svg")) return "image/svg+xml";
+  const lower = url.split("?")[0].toLowerCase();
+  if (lower.endsWith(".ico")) return "image/x-icon";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  return undefined;
+}
+
+let iconHref = "";
+let iconType: string | undefined;
+if (wpIconSrc) {
+  if (isSvgUrl(wpIconSrc)) {
+    iconHref = (await toAdaptiveSvgDataUri(wpIconSrc)) ?? wpIconSrc;
+    iconType = "image/svg+xml";
+  } else {
+    // Raster (PNG/JPG/ICO) from WP: fixed pixels, served as-is.
+    iconHref = wpIconSrc;
+    iconType = faviconType(wpIconSrc);
+  }
+}
+---
+
+<!doctype html>
+<html lang="ne">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {iconHref ? (
+      <link rel="icon" href={iconHref} type={iconType} />
+    ) : (
+      <>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="32x32" />
+      </>
+    )}
+    {themeHead.iosIconUrl && <link rel="apple-touch-icon" href={themeHead.iosIconUrl} />}
+    {themeHead.iosTitle && <meta name="apple-mobile-web-app-title" content={themeHead.iosTitle} />}
+    <meta name="description" content={description} />
+    {canonical && <link rel="canonical" href={canonical} />}
+    {
+      resolvedOgImage && (
+        <>
+          <meta property="og:site_name" content="Patrika" />
+          <meta property="og:type" content={ogType} />
+          <meta property="og:title" content={title} />
+          <meta property="og:description" content={description} />
+          {canonical && <meta property="og:url" content={canonical} />}
+          <meta property="og:image" content={resolvedOgImage} />
+          {ogImageWidth && (
+            <meta property="og:image:width" content={String(ogImageWidth)} />
+          )}
+          {ogImageHeight && (
+            <meta property="og:image:height" content={String(ogImageHeight)} />
+          )}
+          <meta property="og:image:alt" content={ogImageAlt ?? title} />
+          <meta property="og:locale" content="ne_NP" />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={title} />
+          <meta name="twitter:description" content={description} />
+          <meta name="twitter:image" content={resolvedOgImage} />
+        </>
+      )
+    }
+    {themeColorMeta && <meta name="theme-color" content={themeColorMeta} />}
+    {rootOverrideCss && <style is:inline set:html={rootOverrideCss} />}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Khand:wght@400;500;600;700&family=Mukta:wght@200;300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="min-h-screen flex flex-col">
+    <Header signin={themeHead.signin} ad={themeHead.ads.header} />
+    <slot />
+    <Footer footer={themeHead.footer} />
+  </body>
+</html>

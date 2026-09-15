@@ -1,0 +1,278 @@
+---
+/**
+ * Sticky share rail backed by the PatrikaOS Social module.
+ * Config (enabled networks + order) comes from patrikaosSocial via SSR;
+ * the count is postShareCount, incremented client-side through the
+ * /api/graphql proxy (keeps X-PatrikaOS-Key off the browser).
+ * Renders nothing when the module is off or no networks are configured.
+ */
+import { formatCompactNepaliCount } from "../../lib/format";
+
+interface Props {
+  title: string;
+  postId: number | null;
+  shareCount: number;
+  networks: string[];
+}
+
+const { title, postId, shareCount, networks } = Astro.props;
+
+// Inner SVG markup mirrors PatrikaOS/assets/social/*.svg (currentColor).
+const NETWORKS: Record<string, { label: string; color: string; svg: string }> =
+  {
+    facebook: {
+      label: "Facebook",
+      color: "bg-[#1877F2]",
+      svg: '<path d="M15.12 5.32H17V2.14A26.11 26.11 0 0 0 14.26 2c-2.72 0-4.58 1.66-4.58 4.7v2.62H6.61v3.56h3.07V22h3.68v-9.12h3.06l.46-3.56h-3.52V7.05c0-1.05.28-1.73 1.76-1.73Z"/>',
+    },
+    x: {
+      label: "X",
+      color: "bg-black",
+      svg: '<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231ZM17.083 19.77h1.833L7.084 4.126H5.117Z"/>',
+    },
+    whatsapp: {
+      label: "WhatsApp",
+      color: "bg-[#25D366]",
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 175.216 175.552"><defs><linearGradient id="b" x1="85.915" x2="86.535" y1="32.567" y2="137.092" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#57d163"/><stop offset="1" stop-color="#23b33a"/></linearGradient><filter id="a" width="1.115" height="1.114" x="-.057" y="-.057" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="3.531"/></filter></defs><path fill="#b3b3b3" d="m54.532 138.45 2.235 1.324c9.387 5.571 20.15 8.518 31.126 8.523h.023c33.707 0 61.139-27.426 61.153-61.135.006-16.335-6.349-31.696-17.895-43.251A60.75 60.75 0 0 0 87.94 25.983c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.312-6.179 22.558zm-40.811 23.544L24.16 123.88c-6.438-11.154-9.825-23.808-9.821-36.772.017-40.556 33.021-73.55 73.578-73.55 19.681.01 38.154 7.669 52.047 21.572s21.537 32.383 21.53 52.037c-.018 40.553-33.027 73.553-73.578 73.553h-.032c-12.313-.005-24.412-3.094-35.159-8.954zm0 0" filter="url(#a)"/><path fill="#fff" d="m12.966 161.238 10.439-38.114a73.42 73.42 0 0 1-9.821-36.772c.017-40.556 33.021-73.55 73.578-73.55 19.681.01 38.154 7.669 52.047 21.572s21.537 32.383 21.53 52.037c-.018 40.553-33.027 73.553-73.578 73.553h-.032c-12.313-.005-24.412-3.094-35.159-8.954z"/><path fill="url(#linearGradient1780)" d="M87.184 25.227c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.312-6.179 22.559 23.146-6.069 2.235 1.324c9.387 5.571 20.15 8.518 31.126 8.524h.023c33.707 0 61.14-27.426 61.153-61.135a60.75 60.75 0 0 0-17.895-43.251 60.75 60.75 0 0 0-43.235-17.929z"/><path fill="url(#b)" d="M87.184 25.227c-33.733 0-61.166 27.423-61.178 61.13a60.98 60.98 0 0 0 9.349 32.535l1.455 2.313-6.179 22.558 23.146-6.069 2.235 1.324c9.387 5.571 20.15 8.517 31.126 8.523h.023c33.707 0 61.14-27.426 61.153-61.135a60.75 60.75 0 0 0-17.895-43.251 60.75 60.75 0 0 0-43.235-17.928z"/><path fill="#fff" fill-rule="evenodd" d="M68.772 55.603c-1.378-3.061-2.828-3.123-4.137-3.176l-3.524-.043c-1.226 0-3.218.46-4.902 2.3s-6.435 6.287-6.435 15.332 6.588 17.785 7.506 19.013 12.718 20.381 31.405 27.75c15.529 6.124 18.689 4.906 22.061 4.6s10.877-4.447 12.408-8.74 1.532-7.971 1.073-8.74-1.685-1.226-3.525-2.146-10.877-5.367-12.562-5.981-2.91-.919-4.137.921-4.746 5.979-5.819 7.206-2.144 1.381-3.984.462-7.76-2.861-14.784-9.124c-5.465-4.873-9.154-10.891-10.228-12.73s-.114-2.835.808-3.751c.825-.824 1.838-2.147 2.759-3.22s1.224-1.84 1.836-3.065.307-2.301-.153-3.22-4.032-10.011-5.666-13.647"/></svg>',
+    },
+    telegram: {
+      label: "Telegram",
+      color: "bg-[#229ED9]",
+      svg: '<path d="M21.9 3.2 2.7 10.5c-1 .4-1 1.4 0 1.7l4.8 1.5 1.8 5.6c.3.9 1.1 1 1.7.4l2.6-2.5 5 3.7c.8.6 1.7.2 1.9-.8l3.2-14.9c.2-1.1-.6-1.7-1.8-1.2ZM8.5 13.2l10.3-6.5c.4-.3.8.2.5.5l-8.5 7.8-.3 3.4-2-5.2Z"/>',
+    },
+    viber: {
+      label: "Viber",
+      color: "bg-[#7360F2]",
+      svg: '<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 631.99 666.43"><defs><style>.cls-1{fill:#ffffff;}.cls-2{fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;stroke-width:16.86px;}</style></defs><title>Artboard 6</title><path class="cls-1" d="M560.65,65C544.09,49.72,477.17,1.14,328.11.48c0,0-175.78-10.6-261.47,68C18.94,116.19,2.16,186,.39,272.55S-3.67,521.3,152.68,565.28l.15,0-.1,67.11s-1,27.17,16.89,32.71c21.64,6.72,34.34-13.93,55-36.19,11.34-12.22,27-30.17,38.8-43.89,106.93,9,189.17-11.57,198.51-14.61,21.59-7,143.76-22.66,163.63-184.84C646.07,218.4,615.64,112.66,560.65,65Zm18.12,308.58C562,509,462.91,517.51,444.64,523.37c-7.77,2.5-80,20.47-170.83,14.54,0,0-67.68,81.65-88.82,102.88-3.3,3.32-7.18,4.66-9.77,4-3.64-.89-4.64-5.2-4.6-11.5.06-9,.58-111.52.58-111.52s-.08,0,0,0C38.94,485.05,46.65,347,48.15,274.71S63.23,143.2,103.57,103.37c72.48-65.65,221.79-55.84,221.79-55.84,126.09.55,186.51,38.52,200.52,51.24C572.4,138.6,596.1,233.91,578.77,373.54Z"/><path class="cls-2" d="M389.47,268.77q-2.46-49.59-50.38-52.09"/><path class="cls-2" d="M432.72,283.27q1-46.2-27.37-77.2c-19-20.74-45.3-32.16-79.05-34.63"/><path class="cls-2" d="M477,300.59q-.61-80.17-47.91-126.28t-117.65-46.6"/><path class="cls-1" d="M340.76,381.68s11.85,1,18.23-6.86l12.44-15.65c6-7.76,20.48-12.71,34.66-4.81A366.67,366.67,0,0,1,437,374.1c9.41,6.92,28.68,23,28.74,23,9.18,7.75,11.3,19.13,5.05,31.13,0,.07-.05.19-.05.25a129.81,129.81,0,0,1-25.89,31.88c-.12.06-.12.12-.23.18q-13.38,11.18-26.29,12.71a17.39,17.39,0,0,1-3.84.24,35,35,0,0,1-11.18-1.72l-.28-.41c-13.26-3.74-35.4-13.1-72.27-33.44a430.39,430.39,0,0,1-60.72-40.11,318.31,318.31,0,0,1-27.31-24.22l-.92-.92-.92-.92h0l-.92-.92c-.31-.3-.61-.61-.92-.92a318.31,318.31,0,0,1-24.22-27.31,430.83,430.83,0,0,1-40.11-60.71c-20.34-36.88-29.7-59-33.44-72.28l-.41-.28a35,35,0,0,1-1.71-11.18,16.87,16.87,0,0,1,.23-3.84Q141,181.42,152.12,168c.06-.11.12-.11.18-.23a129.53,129.53,0,0,1,31.88-25.88c.06,0,.18-.06.25-.06,12-6.25,23.38-4.13,31.12,5,.06.06,16.11,19.33,23,28.74a366.67,366.67,0,0,1,19.74,30.94c7.9,14.17,2.95,28.68-4.81,34.66l-15.65,12.44c-7.9,6.38-6.86,18.23-6.86,18.23S254.15,359.57,340.76,381.68Z"/></svg>',
+    },
+  };
+
+const items = networks
+  .map((n) => ({ key: n, ...(NETWORKS[n] ?? null) }))
+  .filter((n) => n.svg || n.key === "copy");
+const show = items.length > 0;
+---
+
+{
+  show && (
+    <aside
+      class="sticky top-24 hidden flex-col items-center gap-3 self-start lg:flex"
+      aria-label="सेयर गर्नुहोस्"
+      data-share-rail
+      data-post-id={postId ?? ""}
+      data-title={title}
+    >
+      <div class="mb-2 flex flex-col items-center gap-1">
+        <span
+          class="font-mukta text-2xl font-bold leading-none text-foreground tabular-nums"
+          data-share-count
+        >
+          {formatCompactNepaliCount(shareCount)}
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4.5 w-4.5 text-primary"
+          aria-hidden="true"
+        >
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
+        </svg>
+        <span class="font-khand text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          सेयर
+        </span>
+      </div>
+      <div class="mb-1 h-px w-6 bg-border" />
+      <span class="font-khand mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        सेयर गर्नुहोस्
+      </span>
+      {items.map((item) =>
+        item.key === "copy" ? (
+          <div class="relative">
+            <button
+              type="button"
+              data-copy-link
+              aria-label="लिंक प्रतिलिपि गर्नुहोस्"
+              class="border-border text-muted-foreground hover:bg-primary hover:text-primary-foreground flex h-10 w-10 items-center justify-center rounded-full border bg-background transition-colors duration-150 ease-out active:scale-95 motion-reduce:transition-none"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </button>
+            <span
+              role="status"
+              class="font-mukta bg-foreground text-primary-foreground pointer-events-none absolute top-full left-1/2 mt-2 -translate-x-1/2 rounded px-3 py-1 text-xs whitespace-nowrap shadow-md transition-[opacity,transform] duration-200 ease-out"
+              data-copy-toast
+              style="opacity:0; transform:translate(-50%,-4px) scale(0.95);"
+            >
+              लिङ्क कपी भयो
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-share={item.key}
+            aria-label={`${item.label} मा सेयर गर्नुहोस्`}
+            class:list={[
+              "flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform duration-150 ease-out active:scale-95 motion-reduce:transition-none",
+              item.color,
+            ]}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              class="h-4 w-4"
+              aria-hidden="true"
+              set:html={item.svg}
+            />
+          </button>
+        ),
+      )}
+    </aside>
+  )
+}
+
+<script>
+  const POPUP_FEATURES = "width=600,height=400,noopener,noreferrer";
+
+  const shareUrl = (network: string, url: string, title: string): string => {
+    const u = encodeURIComponent(url);
+    const t = encodeURIComponent(title);
+    switch (network) {
+      case "facebook":
+        // FB dropped the `quote` param years ago — pre-filled composer text
+        // is not possible; the card text comes from og:title/description.
+        return `https://www.facebook.com/sharer/sharer.php?u=${u}`;
+      case "x":
+        return `https://twitter.com/intent/tweet?url=${u}&text=${t}`;
+      case "whatsapp":
+        return `https://api.whatsapp.com/send?text=${t}%20${u}`;
+      case "telegram":
+        return `https://t.me/share/url?url=${u}&text=${t}`;
+      case "viber":
+        return `viber://forward?text=${t}%20${u}`;
+      default:
+        return url;
+    }
+  };
+
+  const INCREMENT = `
+    mutation IncrementShareCount($postId: Int!) {
+      incrementShareCount(input: { postId: $postId }) {
+        success
+        count
+      }
+    }
+  `;
+
+  document
+    .querySelectorAll<HTMLElement>("[data-share-rail]")
+    .forEach((rail) => {
+      if (rail.dataset.wired) return;
+      rail.dataset.wired = "true";
+
+      const postId = Number(rail.dataset.postId) || null;
+      const title = rail.dataset.title ?? document.title;
+      // Browsers serialize location.href with %XX escapes (ugly for
+      // Devanagari slugs). Decode for everything user-visible — the share
+      // endpoints re-encode for transport, resolving to the same URL.
+      let pageUrl = window.location.href;
+      try {
+        pageUrl = decodeURI(pageUrl);
+      } catch {
+        /* malformed escapes — fall back to the raw href */
+      }
+      const countEl = rail.querySelector<HTMLElement>("[data-share-count]")!;
+      const toast = rail.querySelector<HTMLElement>("[data-copy-toast]");
+      let count = Number(countEl.textContent.replace(/[^0-9]/g, "")) || 0;
+
+      const setCount = (n: number) => {
+        count = Math.max(0, n);
+        // Re-format through the same compact Nepali digits by writing the
+        // raw number and letting the formatter run on the next paint is
+        // overkill — format inline (mirrors formatCompactNepaliCount).
+        const fmt = (v: number): string => {
+          const np = (s: string | number) =>
+            s.toString().replace(/\d/g, (d) => "०१२३४५६७८९"[Number(d)]);
+          if (v < 1000) return np(v);
+          const k = v / 1000;
+          const kf = Number.isInteger(k) ? k.toFixed(0) : k.toFixed(1);
+          if (Number(kf) < 1000) return `${np(kf)}K`;
+          return `${np((v / 1_000_000).toFixed(1))}M`;
+        };
+        countEl.textContent = fmt(count);
+      };
+
+      const increment = () => {
+        if (!postId) return;
+        setCount(count + 1); // optimistic; reconcile with the server total
+        fetch("/api/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: INCREMENT,
+            variables: { postId },
+          }),
+        })
+          .then((r) => r.json())
+          .then((json) => {
+            const result = json?.data?.incrementShareCount;
+            if (result?.success && typeof result.count === "number") {
+              setCount(result.count);
+            } else {
+              setCount(count - 1); // roll back the optimistic bump
+            }
+          })
+          .catch(() => setCount(count - 1));
+      };
+
+      rail
+        .querySelectorAll<HTMLButtonElement>("[data-share]")
+        .forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const network = btn.dataset.share!;
+            const href = shareUrl(network, pageUrl, title);
+            increment();
+            if (href.startsWith("http")) {
+              window.open(href, "_blank", POPUP_FEATURES);
+            } else {
+              // Custom protocol (viber://) — popups can't host it.
+              window.location.href = href;
+            }
+          });
+        });
+
+      const copyBtn = rail.querySelector<HTMLButtonElement>("[data-copy-link]");
+      copyBtn?.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(pageUrl);
+        } catch {
+          /* clipboard unavailable — toast stays hidden */
+          return;
+        }
+        if (!toast) return;
+        toast.style.opacity = "1";
+        toast.style.transform = "translate(-50%,0) scale(1)";
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translate(-50%,-4px) scale(0.95)";
+        }, 2000);
+      });
+    });
+</script>

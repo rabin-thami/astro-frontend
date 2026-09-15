@@ -1,0 +1,28 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreParagraph">;
+}
+const { block } = Astro.props;
+const { content, align } = block.attributes;
+const alignClass =
+  align === "center"
+    ? "text-center"
+    : align === "right"
+      ? "text-right"
+      : align === "justify"
+        ? "text-justify"
+        : "";
+---
+
+{
+  content && (
+    <RichText
+      html={content}
+      as="p"
+      class={`my-6 font-mukta text-lg leading-[1.85] text-foreground md:text-xl ${alignClass}`}
+    />
+  )
+}

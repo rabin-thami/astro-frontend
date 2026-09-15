@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  /* PatrikaOS token defaults — overridden per-request by middleware (cache phase)
+     via <style>:root{…}. Same set as PatrikaOS token panel. */
+  --color-background: #ffffff;
+  --color-foreground: #16181d;
+  --color-card: #f5f6f8;
+  --color-card-foreground: #16181d;
+  --color-muted: #f5f6f8;
+  --color-muted-foreground: #5b6573;
+  --color-primary: #0b5cad;
+  --color-primary-foreground: #ffffff;
+  --color-primary-dark: #0a4a8a;
+  --color-destructive: #e5484d;
+  --color-border: #e3e6eb;
+  --font-mukta: "Mukta", sans-serif;
+  --font-inter: "Inter", sans-serif;
+  --font-khand: "Khand", sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-card: var(--color-card);
+  --color-card-foreground: var(--color-card-foreground);
+  --color-muted: var(--color-muted);
+  --color-muted-foreground: var(--color-muted-foreground);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-primary-dark: var(--color-primary-dark);
+  --color-destructive: var(--color-destructive);
+  --color-border: var(--color-border);
+  --font-mukta: var(--font-mukta);
+  --font-inter: var(--font-inter);
+  --font-khand: var(--font-khand);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-inter), var(--font-mukta), sans-serif;
+}
+
+/* Visible keyboard focus everywhere — the one global interaction rule. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

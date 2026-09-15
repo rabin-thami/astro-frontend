@@ -1,0 +1,47 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  /** Dual API, as in the reference: block, or direct (level, content). */
+  block?: BlockOf<"CoreHeading">;
+  level?: number;
+  content?: string;
+  class?: string;
+}
+
+const { block, level, content, class: className } = Astro.props;
+const _level = level ?? block?.attributes.level ?? 2;
+// One sanitized level drives BOTH tag and size: raw values (0, 7, NaN,
+// fractions) previously split the two branches and NaN rendered <hNaN>.
+const levelInt = Number.isFinite(_level)
+  ? Math.min(Math.max(Math.floor(_level), 1), 6)
+  : 2;
+const _content = content ?? block?.attributes.content ?? "";
+
+const Heading = `h${levelInt}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+const HEADING_STYLES = [
+  // h1 — brand voice: the only blue heading in the body.
+  "mt-10 mb-4 text-4xl md:text-5xl font-bold text-primary leading-snug",
+  // h2 — signature: accent bar, section breaks you can scan.
+  "mt-10 mb-3 text-3xl md:text-4xl font-bold text-primary-dark leading-snug border-l-4 border-primary pl-4",
+  // h3 — plain semibold step.
+  "mt-8 mb-3 text-2xl md:text-3xl font-semibold text-primary-dark leading-snug",
+  // h4 — smaller, same ink.
+  "mt-6 mb-2 text-xl md:text-2xl font-semibold text-primary-dark leading-snug",
+  // h5/h6 — recede into muted; deep nesting should whisper.
+  "mt-6 mb-2 text-lg md:text-xl font-semibold text-muted-foreground leading-snug",
+  "mt-4 mb-2 text-base md:text-lg font-semibold text-muted-foreground leading-snug",
+];
+const headingStyle = HEADING_STYLES[levelInt - 1] ?? HEADING_STYLES[1];
+---
+
+{
+  _content && (
+    <Heading
+      class={`font-mukta ${headingStyle} ${className ?? ""}`}
+    >
+      <RichText html={_content} />
+    </Heading>
+  )
+}

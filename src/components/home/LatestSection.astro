@@ -1,0 +1,95 @@
+---
+import type { WPCardPost } from "../../lib/graphql/queries/getPostsByCategory";
+import type { AdSlotConfig } from "../../lib/graphql/queries/getTheme";
+import CardOverlay from "../cards/CardOverlay.astro";
+import CardThumbnail from "../cards/CardThumbnail.astro";
+import AdSlot from "../ads/AdSlot.astro";
+
+interface Props {
+  /** Section feed — fetched by the page in its single combined batch. */
+  posts: WPCardPost[];
+  /** Rail slots (WP ads.latestSidebar) — arrives with the same payload. */
+  railAds: AdSlotConfig[];
+}
+
+const { posts, railAds } = Astro.props;
+
+const [feature, ...rest] = posts;
+const hasRail = railAds.length > 0;
+---
+
+{
+  posts.length > 0 && feature && (
+    <section
+      class:list={[
+        "grid grid-cols-1 gap-6 px-4 sm:px-6 md:grid-cols-2",
+        hasRail && "lg:grid-cols-[2fr_2fr_1.5fr]",
+      ]}
+    >
+      <CardOverlay
+        title={feature.title}
+        href={feature.link}
+        imageUrl={feature.featuredImage?.node.sourceUrl}
+        imageWidth={feature.featuredImage?.node.mediaDetails?.width ?? undefined}
+        imageHeight={feature.featuredImage?.node.mediaDetails?.height ?? undefined}
+        imageAlt={feature.featuredImage?.node.altText ?? feature.title}
+        excerpt={feature.excerpt ?? undefined}
+        timestamp={feature.dateGmt}
+        size="lg"
+        class="h-full"
+      />
+
+      <div class="space-y-4">
+        {rest.map((post) => (
+          <CardThumbnail
+            title={post.title}
+            href={post.link}
+            imageUrl={post.featuredImage?.node.sourceUrl}
+            imageWidth={post.featuredImage?.node.mediaDetails?.width ?? undefined}
+            imageHeight={post.featuredImage?.node.mediaDetails?.height ?? undefined}
+            imageAlt={post.featuredImage?.node.altText ?? ""}
+            timestamp={post.dateGmt}
+            layout="horizontal"
+            imageClass="aspect-square w-40"
+          />
+        ))}
+
+        {/* TODO: link to a 24h-updates view once the route exists (reference renders a Button with no target either). */}
+        <div class="bg-primary text-primary-foreground flex w-full items-center justify-center gap-2 rounded-md py-3 font-semibold">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <>
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </>
+          </svg>
+          <span>२४ घण्टाका ताजा अपडेट</span>
+        </div>
+      </div>
+
+      {hasRail && (
+        <aside
+          class="flex flex-col gap-4 md:col-span-2 lg:col-span-1"
+          aria-label="विज्ञापन"
+        >
+          {railAds.map((ad) => (
+            <AdSlot
+              ad={ad}
+              class="flex w-full items-center justify-center"
+              placeholder="Advertisement"
+            />
+          ))}
+        </aside>
+      )}
+    </section>
+  )
+}

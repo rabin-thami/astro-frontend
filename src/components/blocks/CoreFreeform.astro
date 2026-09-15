@@ -1,0 +1,26 @@
+---
+/**
+ * Classic/legacy content (core/freeform) — posts saved before the block
+ * editor, or pasted as raw HTML, arrive as one block whose renderedHtml
+ * holds the whole body. Rendered through the RichText sanitizer + set:html
+ * (same trust model as every other CMS-authored field).
+ */
+import type { BlockOf } from "../../lib/wp/types";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreFreeform">;
+}
+
+const { block } = Astro.props;
+---
+
+{
+  block.renderedHtml && (
+    <RichText
+      html={block.renderedHtml}
+      as="div"
+      class="font-mukta text-lg leading-[1.85] text-foreground md:text-xl"
+    />
+  )
+}

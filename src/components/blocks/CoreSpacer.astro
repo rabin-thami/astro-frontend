@@ -1,0 +1,15 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+
+interface Props {
+  block: BlockOf<"CoreSpacer">;
+}
+
+const { block } = Astro.props;
+// Only plain lengths pass through; anything else falls back to WP's default.
+const height = /^\d+(\.\d+)?(px|%|em|rem|vh|vw)$/.test(block.attributes.height ?? "")
+  ? block.attributes.height
+  : "100px";
+---
+
+<div aria-hidden="true" style={`height:${height};`}></div>

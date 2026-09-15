@@ -1,0 +1,132 @@
+---
+import SafeImage from "../ui/SafeImage.astro";
+import type { WPCardPost } from "../../lib/graphql/queries/getPostsByCategory";
+import { htmlToText } from "../../lib/richtext/strip";
+import SmartLink from "../ui/SmartLink.astro";
+import CardTimestamp from "../cards/CardTimestamp.astro";
+import AdSlot from "../ads/AdSlot.astro";
+import type { AdSlotConfig } from "../../lib/graphql/queries/getTheme";
+
+interface Props {
+  /** Section feed — fetched by the page in its single combined batch. */
+  posts: WPCardPost[];
+  /** Max words per caption; longer excerpts are cut with …. */
+  captionWords?: number;
+  /** Banner after the 1st post (WP ads: featuredInline). */
+  inlineAd?: AdSlotConfig;
+  /** Banner before the last post (post1 · ad · … · ad · postN) — WP ads: featuredEnd. */
+  endAd?: AdSlotConfig;
+}
+
+const { posts, captionWords = 30, inlineAd, endAd } = Astro.props;
+---
+
+{
+  posts.length === 0 ? (
+    <p class="text-muted-foreground text-center">
+      No posts to display. Publish something in WordPress.
+    </p>
+  ) : (
+    posts.map((post, i) => {
+      const author = post.author?.node?.name ?? "Unknown";
+      const avatar = post.author?.node?.avatar?.url ?? undefined;
+      const excerptText = post.excerpt?.trim() ? htmlToText(post.excerpt) : "";
+      const words = excerptText.split(/\s+/).filter(Boolean);
+      const caption =
+        words.length > captionWords
+          ? words.slice(0, captionWords).join(" ") + "…"
+          : excerptText || undefined;
+      return (
+        <>
+        <div class="font-mukta my-6 w-full px-4 text-center sm:my-10 sm:px-6">
+          <SmartLink href={post.link}>
+            <h1 class="text-foreground hover:text-primary text-3xl leading-tight font-semibold transition-colors duration-300 sm:text-4xl md:text-5xl lg:text-6xl">
+              {post.title}
+            </h1>
+          </SmartLink>
+
+          <div class="text-muted-foreground mt-4 flex flex-wrap items-center justify-center gap-2 text-sm sm:gap-4">
+            <div class="flex items-center gap-2">
+              {avatar ? (
+                <SafeImage
+                  src={avatar}
+                  alt={author}
+                  width={40}
+                  height={40}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  class="rounded-full border border-border object-cover"
+                />
+              ) : (
+                <div class="bg-muted border-border flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold">
+                  {author.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span class="text-base sm:text-base">{author}</span>
+            </div>
+            <CardTimestamp
+              date={post.dateGmt}
+              class="text-base sm:text-lg gap-2"
+            />
+          </div>
+
+          {post.featuredImage?.node.sourceUrl && (
+            <div class="mt-6">
+              <SafeImage
+                src={post.featuredImage.node.sourceUrl}
+                alt={post.featuredImage.node.altText ?? post.title}
+                width={Math.min(
+                  post.featuredImage.node.mediaDetails?.width ?? 1200,
+                  1280,
+                )}
+                height={Math.max(
+                  1,
+                  Math.round(
+                    ((post.featuredImage.node.mediaDetails?.height ?? 630) /
+                      (post.featuredImage.node.mediaDetails?.width ?? 1200)) *
+                      Math.min(
+                        post.featuredImage.node.mediaDetails?.width ?? 1200,
+                        1280,
+                      ),
+                  ),
+                )}
+                loading={i === 0 ? "eager" : "lazy"}
+                fetchpriority={i === 0 ? "high" : "auto"}
+                class="h-56 w-full rounded-lg object-cover sm:h-80 md:h-96 lg:h-120"
+              />
+            </div>
+          )}
+
+          {caption && (
+            <p class="text-muted-foreground mt-3 text-lg sm:text-xl lg:text-2xl">
+              {caption}
+            </p>
+          )}
+          <hr class="border-border mt-5" />
+        </div>
+
+        {i === 0 && inlineAd?.enabled && (
+          <div class="my-6 w-full px-4 sm:my-10 sm:px-6">
+            <AdSlot
+              ad={inlineAd}
+              class="flex aspect-[123/10] w-full items-center justify-center"
+              placeholder="Advertisement"
+            />
+            <hr class="border-border mt-5" />
+          </div>
+        )}
+
+        {posts.length >= 3 && i === posts.length - 2 && endAd?.enabled && (
+          <div class="my-6 w-full px-4 sm:my-10 sm:px-6">
+            <AdSlot
+              ad={endAd}
+              class="flex aspect-[123/10] w-full items-center justify-center"
+              placeholder="Advertisement"
+            />
+            <hr class="border-border mt-5" />
+          </div>
+        )}
+        </>
+      );
+    })
+  )
+}

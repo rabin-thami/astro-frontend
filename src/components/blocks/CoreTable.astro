@@ -1,0 +1,65 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreTable">;
+}
+const { block } = Astro.props;
+const { head, body, foot } = block.attributes;
+
+type Cell = { content?: string; tag?: string };
+type Row = { cells?: Cell[] };
+const rows = (r?: Row[]) =>
+  (r ?? []).filter((row) => (row.cells ?? []).length > 0);
+---
+
+{
+  (rows(head).length > 0 || rows(body).length > 0) && (
+    <div class="my-6 overflow-x-auto rounded border border-border">
+      <table class="w-full text-base">
+        {rows(head).map((row) => (
+          <thead class="bg-primary text-primary-foreground">
+            <tr>
+              {row.cells!.map((cell) => (
+                <th class="px-3 py-2 text-left font-semibold" scope="col">
+                  <RichText html={cell.content ?? ""} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+        ))}
+        <tbody>
+          {rows(body).map((row, i) => (
+            <tr class={i % 2 === 1 ? "bg-card" : ""}>
+              {row.cells!.map((cell) => {
+                const Tag = cell.tag === "th" ? "th" : "td";
+                return (
+                  <Tag
+                    class="border-t border-border px-3 py-2 text-left"
+                    scope={cell.tag === "th" ? "row" : undefined}
+                  >
+                    <RichText html={cell.content ?? ""} />
+                  </Tag>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+        {rows(foot).length > 0 && (
+          <tfoot class="bg-card font-medium">
+            {rows(foot).map((row) => (
+              <tr class="border-t border-border">
+                {row.cells!.map((cell) => (
+                  <td class="px-3 py-2">
+                    <RichText html={cell.content ?? ""} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tfoot>
+        )}
+      </table>
+    </div>
+  )
+}

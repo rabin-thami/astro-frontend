@@ -1,0 +1,20 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SmartLink from '../components/ui/SmartLink.astro';
+---
+
+<Layout title="Page not found — Patrika" description="The page you are looking for does not exist.">
+  <main class="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-4 py-24 text-center sm:px-6">
+    <p class="font-khand text-7xl font-bold text-primary">404</p>
+    <h1 class="font-mukta mt-4 text-2xl font-semibold">Page not found</h1>
+    <p class="text-muted-foreground font-mukta mt-2 max-w-md">
+      The page you are looking for may have moved or no longer exists.
+    </p>
+    <SmartLink
+      href="/"
+      class="bg-primary text-primary-foreground font-mukta mt-8 rounded-md px-6 py-2.5 font-semibold transition-transform active:scale-[0.97]"
+    >
+      Go to homepage
+    </SmartLink>
+  </main>
+</Layout>

@@ -1,0 +1,87 @@
+---
+import SafeImage from '../ui/SafeImage.astro';
+import type { LogoConfig } from '../../lib/graphql/queries/getLayout';
+
+interface Props {
+  logo: LogoConfig;
+  /** Compact rendering for the sticky/mobile bar. */
+  compact?: boolean;
+}
+
+const { logo, compact = false } = Astro.props;
+const hasImage = !!logo.url && (!compact || !!logo.retina);
+const src = compact ? logo.retina || logo.url : logo.url;
+const imgClass = compact ? 'h-8 w-auto' : 'h-10 w-auto';
+
+// Remote WP logos can't be imported as components like local SVGs, so the
+// equivalent optimization is server-side inlining: one cached fetch per URL,
+// zero image requests in the browser, vector kept sharp. Falls back to <img>.
+const svgCache: Map<string, Promise<string | null>> =
+  (globalThis as unknown as Record<string, Map<string, Promise<string | null>> | undefined>)['__patrikaLogoSvgCache'] ??
+  new Map();
+(globalThis as unknown as Record<string, Map<string, Promise<string | null>>>)['__patrikaLogoSvgCache'] = svgCache;
+
+function isSvgSrc(url: string): boolean {
+  return url.split('?')[0].toLowerCase().endsWith('.svg');
+}
+
+async function fetchSvg(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const svg = await res.text();
+    if (!svg.toLowerCase().includes('<svg') || svg.length > 100_000) return null;
+    return svg
+      .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/javascript:/gi, '');
+  } catch {
+    return null;
+  }
+}
+
+function getInlineSvg(url: string): Promise<string | null> {
+  const hit = svgCache.get(url);
+  if (hit) return hit;
+  const p = fetchSvg(url);
+  svgCache.set(url, p);
+  return p;
+}
+
+function withAttrs(svg: string, cls: string, label: string): string {
+  const safeLabel = label.replace(/"/g, '&quot;');
+  return svg.replace(
+    /<svg([^>]*)>/i,
+    (_m, attrs: string) => {
+      let a = String(attrs).replace(/\sclass\s*=\s*("[^"]*"|'[^']*')/i, '');
+      a += ` class="${cls}" role="img" aria-label="${safeLabel}"`;
+      return `<svg${a}>`;
+    },
+  );
+}
+
+let inlineSvg: string | null = null;
+if (hasImage && isSvgSrc(src)) {
+  const raw = await getInlineSvg(src);
+  if (raw) inlineSvg = withAttrs(raw, imgClass, logo.alt || logo.text || 'Logo');
+}
+---
+
+{
+  hasImage ? (
+    inlineSvg ? (
+      <Fragment set:html={inlineSvg} />
+    ) : (
+      <SafeImage
+      src={src}
+      alt={logo.alt}
+      class={imgClass}
+      loading="eager"
+    />
+    )
+  ) : (
+    <span class={compact ? 'text-xl font-bold' : 'text-2xl font-bold text-primary-dark font-khand'}>
+      {logo.text}
+    </span>
+  )
+}

@@ -1,0 +1,83 @@
+---
+import type { WPCardPost } from "../../lib/graphql/queries/getPostsByCategory";
+import SmartLink from "../ui/SmartLink.astro";
+import CardSideBySide from "../cards/CardSideBySide.astro";
+import CardThumbnail from "../cards/CardThumbnail.astro";
+
+const NEWS_MOBILE_LIMIT = 5;
+
+interface Props {
+  /** Section feed (all posts; mirrors the reference: no category filter). */
+  posts: WPCardPost[];
+}
+
+const { posts } = Astro.props;
+
+const [featured, ...rest] = posts;
+let renderedCount = 0;
+---
+
+{
+  posts.length > 0 && featured && (
+    <section class="space-y-6 px-4 sm:px-6">
+      <div class="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 class="text-3xl font-semibold font-khand text-primary">समाचार</h2>
+        <SmartLink href="/news" aria-label="View all news">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            class="text-primary"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M7.21 14.77a.75.75 0 01-.02-1.06L11.17 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </SmartLink>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6">
+        <div class="space-y-6">
+          <CardSideBySide
+            title={featured.title}
+            href={featured.link}
+            imageUrl={
+              featured.featuredImage?.node.sourceUrl
+            }
+            imageWidth={featured.featuredImage?.node.mediaDetails?.width ?? undefined}
+            imageHeight={featured.featuredImage?.node.mediaDetails?.height ?? undefined}
+            imageAlt={featured.featuredImage?.node.altText ?? featured.title}
+            excerpt={featured.excerpt ?? undefined}
+            timestamp={featured.dateGmt}
+            size="lg"
+            imageClass="h-[350px] md:h-[400px] w-[350px] md:w-[450px]"
+            titleClass="md:text-4xl"
+          />
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {rest.map((post) => {
+              const hideOnMobile = renderedCount++ >= NEWS_MOBILE_LIMIT - 1;
+              return (
+                <CardThumbnail
+                  title={post.title}
+                  href={post.link}
+                  imageUrl={post.featuredImage?.node.sourceUrl}
+                  imageWidth={post.featuredImage?.node.mediaDetails?.width ?? undefined}
+                  imageHeight={post.featuredImage?.node.mediaDetails?.height ?? undefined}
+                  imageAlt={post.featuredImage?.node.altText ?? ""}
+                  timestamp={post.dateGmt}
+                  layout="horizontal"
+                  class={hideOnMobile ? "hidden sm:flex" : undefined}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

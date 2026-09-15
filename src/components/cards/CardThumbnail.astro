@@ -1,0 +1,78 @@
+---
+import { Image } from 'astro:assets';
+import SafeImage from "../ui/SafeImage.astro";
+import noImage from '../../assets/no-image-placeholder.png';
+import SmartLink from '../ui/SmartLink.astro';
+import CardTimestamp from './CardTimestamp.astro';
+
+/** Small thumbnail card for dense list/grid rows, with placeholder fallback. */
+interface Props {
+  title: string;
+  href: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  /** Intrinsic dimensions — avoids layout shift and lets the optimizer size the file. */
+  imageWidth?: number;
+  imageHeight?: number;
+  timestamp?: string;
+  layout?: 'horizontal' | 'vertical';
+  /** "eager" for the first card above the fold (archive LCP image). */
+  loading?: 'lazy' | 'eager';
+  imageClass?: string;
+  class?: string;
+}
+
+const {
+  title,
+  href,
+  imageUrl,
+  imageAlt = '',
+  imageWidth = 1200,
+  imageHeight = 630,
+  timestamp,
+  layout = 'horizontal',
+  loading = 'lazy',
+  imageClass,
+  class: className,
+} = Astro.props;
+
+  // Request a display-sized variant, not the full media-library width.
+  const outWidth = Math.min(imageWidth, 400);
+  const outHeight = Math.max(1, Math.round((imageHeight / imageWidth) * outWidth));
+---
+
+{layout === 'vertical' ? (
+  <SmartLink href={href} class={`group flex flex-col gap-2 ${className ?? ''}`}>
+    {imageUrl ? (
+      <div class={`bg-muted relative aspect-[4/2] w-full overflow-hidden rounded-md ${imageClass ?? ''}`}>
+        <SafeImage src={imageUrl} alt={imageAlt} width={outWidth} height={outHeight} loading={loading} fetchpriority={loading === 'eager' ? 'high' : 'auto'} class="absolute inset-0 h-full w-full object-cover" />
+      </div>
+    ) : (
+      <div class={`bg-muted relative aspect-[4/2] w-full overflow-hidden rounded-md ${imageClass ?? ''}`}>
+        <Image src={noImage} alt="" width={400} height={200} loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
+      </div>
+    )}
+    <h3 class="font-mukta text-foreground group-hover:text-primary line-clamp-2 text-lg font-semibold transition-colors md:text-xl">
+      {title}
+    </h3>
+    {timestamp && <CardTimestamp date={timestamp} />}
+  </SmartLink>
+) : (
+  <SmartLink href={href} class={`group flex flex-row items-start gap-4 ${className ?? ''}`}>
+    {imageUrl ? (
+      <div class={`bg-muted relative h-28 w-28 shrink-0 overflow-hidden rounded-md ${imageClass ?? ''}`}>
+        <SafeImage src={imageUrl} alt={imageAlt} width={outWidth} height={outHeight} loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
+      </div>
+    ) : (
+      <div class={`bg-muted relative h-28 w-28 shrink-0 overflow-hidden rounded-md ${imageClass ?? ''}`}>
+        <Image src={noImage} alt="" width={224} height={224} loading="lazy" class="absolute inset-0 h-full w-full object-cover" />
+      </div>
+    )}
+    <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+      <h3 class="font-mukta text-foreground group-hover:text-primary line-clamp-2 text-base font-semibold transition-colors md:text-lg">
+        {title}
+      </h3>
+      {timestamp && <CardTimestamp date={timestamp} />}
+    </div>
+  </SmartLink>
+)}

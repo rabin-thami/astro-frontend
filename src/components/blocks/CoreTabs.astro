@@ -1,0 +1,115 @@
+---
+import type { BlockOf, HierarchicalBlock } from "../../lib/wp/types";
+import BlockRenderer from "./BlockRenderer.astro";
+
+interface Props {
+  block: BlockOf<"CoreTabs">;
+}
+
+const { block } = Astro.props;
+
+// Panels live under core/tab-panels; labels ride on each core/tab-panel
+// (the sibling tab-list only duplicates them, so it is skipped in
+// BlockRenderer and never rendered directly).
+const panelsContainer = block.innerBlocks.find(
+  (b): b is Extract<HierarchicalBlock, { __typename: "CoreTabPanels" }> =>
+    b.__typename === "CoreTabPanels",
+);
+const panels = (panelsContainer?.innerBlocks ?? []).filter(
+  (b): b is Extract<HierarchicalBlock, { __typename: "CoreTabPanel" }> =>
+    b.__typename === "CoreTabPanel",
+);
+const panelLabel = (
+  panel: Extract<HierarchicalBlock, { __typename: "CoreTabPanel" }>,
+  index: number,
+): string =>
+  panel.attributes.label || panel.attributes.tabLabel || `Tab ${index + 1}`;
+
+const requested = block.attributes.activeTabIndex ?? 0;
+const initial =
+  requested >= 0 && requested < panels.length ? requested : 0;
+const rootId = `tabs-${block.clientId}`;
+---
+
+{panels.length > 0 && (
+  <div id={rootId} data-tabs-root class="my-6">
+    <div role="tablist" aria-label="Content tabs" class="border-border flex flex-wrap gap-1 border-b-2">
+      {panels.map((panel, i) => (
+        <button
+          type="button"
+          role="tab"
+          id={`${rootId}-tab-${i}`}
+          aria-selected={i === initial ? "true" : "false"}
+          aria-controls={`${rootId}-panel-${i}`}
+          tabindex={i === initial ? 0 : -1}
+          data-tabs-tab={i}
+          class={`-mb-0.5 border-b-2 px-4 py-2 text-[15px] font-semibold transition-colors ${
+            i === initial
+              ? "border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground border-transparent"
+          }`}
+        >
+          {panelLabel(panel, i)}
+        </button>
+      ))}
+    </div>
+    {panels.map((panel, i) => (
+      <div
+        role="tabpanel"
+        id={`${rootId}-panel-${i}`}
+        aria-labelledby={`${rootId}-tab-${i}`}
+        tabindex={0}
+        data-tabs-panel={i}
+        hidden={i === initial ? undefined : true}
+        class="pt-6"
+      >
+        {panel.innerBlocks.map((b) => (
+          <BlockRenderer block={b} />
+        ))}
+      </div>
+    ))}
+  </div>
+)}
+
+<script>
+  // Instance-scoped tab switching (one listener set per tabs block).
+  document.querySelectorAll('[data-tabs-root]').forEach((rootEl) => {
+    const root = rootEl as HTMLElement;
+    if (root.dataset.tabsWired) return;
+    root.dataset.tabsWired = 'true';
+    const tabs = Array.from(
+      root.querySelectorAll<HTMLElement>('[data-tabs-tab]'),
+    );
+    const panels = Array.from(
+      root.querySelectorAll<HTMLElement>('[data-tabs-panel]'),
+    );
+
+    function select(index: number): void {
+      tabs.forEach((tab, i) => {
+        const on = i === index;
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        tab.tabIndex = on ? 0 : -1;
+        tab.classList.toggle('border-primary', on);
+        tab.classList.toggle('text-primary', on);
+        tab.classList.toggle('text-muted-foreground', !on);
+        tab.classList.toggle('border-transparent', !on);
+      });
+      panels.forEach((panel, i) => {
+        if (i === index) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', '');
+      });
+    }
+
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(i));
+      tab.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        const next =
+          (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+        select(next);
+        tabs[next].focus();
+      });
+    });
+  });
+</script>

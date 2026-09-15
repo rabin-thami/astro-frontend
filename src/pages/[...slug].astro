@@ -1,0 +1,285 @@
+---
+export const prerender = false; // on-demand; needs an adapter for `build` (deploy phase)
+
+import { getNodeByUri } from "../lib/graphql/queries/getNodeByUri";
+import { getPostsByCategory } from "../lib/graphql/queries/getPostsByCategory";
+import { flatListToHierarchical } from "../lib/wp/types";
+import { htmlToText } from "../lib/richtext/strip";
+import Layout from "../layouts/Layout.astro";
+import BlockRenderer from "../components/blocks/BlockRenderer.astro";
+import BackendError from "../components/ui/BackendError.astro";
+import CardThumbnail from "../components/cards/CardThumbnail.astro";
+import ArticleHeader from "../components/article/ArticleHeader.astro";
+import ShareRail from "../components/article/ShareRail.astro";
+import ReactionsBar from "../components/article/ReactionsBar.astro";
+import RelatedNews from "../components/article/RelatedNews.astro";
+import RecommendedNews from "../components/article/RecommendedNews.astro";
+import AdSlot from "../components/ads/AdSlot.astro";
+import { getThemeHead } from "../lib/graphql/queries/getTheme";
+import { getGraphQLStatus } from "../lib/graphql/client";
+import { getPostPageData } from "../lib/graphql/queries/getPostPageData";
+import { isAssetPath } from "../lib/wp/url";
+
+const { slug } = Astro.params;
+const raw = slug ? `/${slug}` : "/";
+const uri = raw.endsWith("/") ? raw : `${raw}/`;
+
+// Bot probes and missing files reach the catch-all too — answer them without
+// touching WordPress (the middleware already skipped the theme prefetch).
+if (isAssetPath(raw)) {
+  return Astro.redirect("/404");
+}
+
+// Node first; the health probe only fires when nothing resolved. A returned
+// node is itself proof the backend answered, so healthy renders skip the
+// extra round-trip (it exists to tell 404 from unreachable/forbidden).
+const node = await getNodeByUri(uri);
+const status = node ? "ok" : await getGraphQLStatus();
+
+if (!node && status === "ok") {
+  return Astro.redirect("/404");
+}
+
+const isPost = node?.__typename === "Post";
+const isCategory = node?.__typename === "Category";
+const blocks =
+  node && "editorBlocks" in node
+    ? flatListToHierarchical(node.editorBlocks)
+    : [];
+const siteTitle = isPost
+  ? node.title
+  : isCategory
+    ? node.name
+    : uri === "/"
+      ? "Patrika"
+      : "Page";
+const description = isPost
+  ? htmlToText(node.excerpt ?? "") || siteTitle
+  : isCategory
+    ? node.description || node.name
+    : siteTitle;
+
+// Ad slots + Social config (Theme > Ads Management / Social module) — fetched
+// once per request by middleware; sidebar column collapses when its slots are off.
+const themeHead = Astro.locals.themeHead ?? (await getThemeHead());
+// Social module config (networks + on/off) — rail hides when disabled.
+const social = themeHead.social;
+
+// Category archive list and the combined single-post payload are mutually
+// exclusive (a request is one node type or the other) — fire the relevant
+// one without serializing anything behind it.
+const CATEGORY_ARCHIVE_LIMIT = 24;
+const RECOMMENDED_LIMIT = 6;
+const [archivePosts, postData] = await Promise.all([
+  isCategory && node && status === "ok"
+    ? getPostsByCategory(node.slug, CATEGORY_ARCHIVE_LIMIT)
+    : Promise.resolve([]),
+  isPost && node
+    ? getPostPageData(node.databaseId, RECOMMENDED_LIMIT, [node.databaseId])
+    : Promise.resolve(null),
+]);
+
+// Reactions module config + counts — bar hides when disabled.
+const reactions = postData?.reactionsConfig ?? null;
+const reactionCounts = postData?.reactionCounts ?? { total: 0, counts: [] };
+// AI Summary module — card hides when disabled or the post has no summary.
+const aiSummaryConfig = { enabled: postData?.aiSummaryEnabled ?? false };
+// Single-post banners (WP: articleTop / articleInline) + share count.
+const articleAds = postData?.ads ?? {
+  articleTop: null,
+  articleInline: [],
+};
+const shareCount = isPost && social.enabled ? (postData?.shareCount ?? 0) : 0;
+// Article right rail: the repeatable sidebar list (WP ad_sidebar_ads rows).
+// Column shows when any slot is enabled; each renders image or placeholder.
+const sidebarSlots = themeHead.ads.sidebar.filter((ad) => ad.enabled);
+const hasSidebarAd = sidebarSlots.length > 0;
+// सिफारिस rail: latest feed under the ads; all-posts fallback like the home
+// sections (only when "latest" has no posts yet).
+let recommendedPosts = postData?.recommendedPosts ?? [];
+if (isPost && recommendedPosts.length === 0) {
+  recommendedPosts = await getPostsByCategory("", RECOMMENDED_LIMIT);
+}
+const recommended = recommendedPosts
+  .filter((post) => post.databaseId !== (isPost ? node.databaseId : -1))
+  .map((post) => ({
+    title: post.title,
+    link: post.link,
+    imageUrl: post.featuredImage?.node.sourceUrl,
+    imageAlt: post.featuredImage?.node.altText ?? "",
+    imageWidth: post.featuredImage?.node.mediaDetails?.width ?? undefined,
+    imageHeight: post.featuredImage?.node.mediaDetails?.height ?? undefined,
+  }));
+// In-content ads: group actives by how many blocks precede them. Entries
+// beyond the block count simply never map (skipped); equals render in order.
+const inlineAdsByIndex = new Map<number, typeof articleAds.articleInline>();
+for (const ad of articleAds.articleInline) {
+  const list = inlineAdsByIndex.get(ad.afterIndex) ?? [];
+  list.push(ad);
+  inlineAdsByIndex.set(ad.afterIndex, list);
+}
+// Social-card meta: absolute URLs from the request origin (works in dev and
+// on the deployed worker). og:image is the post's featured image (with real
+// dimensions for correct platform previews); Layout falls back to the logo.
+const canonicalURL = new URL(Astro.url.pathname, Astro.url.origin).href;
+const featured =
+  isPost && node && "featuredImage" in node
+    ? (node.featuredImage?.node ?? null)
+    : null;
+const ogImageURL = featured?.sourceUrl ?? undefined;
+const ogImageAlt =
+  featured?.altText?.trim() || (isPost ? node.title : siteTitle);
+const ogImageWidth = featured?.mediaDetails?.width ?? undefined;
+const ogImageHeight = featured?.mediaDetails?.height ?? undefined;
+---
+
+<Layout
+  title={`${siteTitle} — Patrika`}
+  description={description}
+  ogImage={ogImageURL}
+  ogImageAlt={ogImageAlt}
+  ogImageWidth={ogImageWidth}
+  ogImageHeight={ogImageHeight}
+  ogType={isPost ? "article" : "website"}
+  canonical={canonicalURL}
+>
+  {
+    isCategory && node && status === "ok" ? (
+      <main class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+        <BackendError status={status} />
+        <div class="mb-6 border-b-2 border-primary pb-2">
+          <h1 class="font-mukta text-3xl font-semibold text-primary">
+            {node.name}
+          </h1>
+          {node.description && (
+            <p class="text-muted-foreground mt-1">{node.description}</p>
+          )}
+        </div>
+        {archivePosts.length === 0 ? (
+          <p class="text-muted-foreground">No posts in this category yet.</p>
+        ) : (
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {archivePosts.map((post, i) => (
+              <CardThumbnail
+                title={post.title}
+                href={post.link}
+                imageUrl={post.featuredImage?.node.sourceUrl}
+                imageWidth={post.featuredImage?.node.mediaDetails?.width ?? undefined}
+                imageHeight={post.featuredImage?.node.mediaDetails?.height ?? undefined}
+                imageAlt={post.featuredImage?.node.altText ?? ""}
+                timestamp={post.dateGmt}
+                layout="vertical"
+                loading={i < 3 ? "eager" : "lazy"}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+    ) : (
+      <main class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+        <BackendError status={status} />
+        {node && status === "ok" && (
+          <div
+            class:list={[
+              "grid grid-cols-1 gap-8",
+              hasSidebarAd
+                ? "lg:grid-cols-[0.1fr_1fr_0.4fr]"
+                : "lg:grid-cols-[0.1fr_1fr]",
+            ]}
+          >
+            <ShareRail
+              title={node.__typename === "Category" ? node.name : node.title}
+              postId={isPost ? node.databaseId : null}
+              shareCount={shareCount}
+              networks={social.networks}
+            />
+
+            <article class="min-w-0">
+              {isPost && (
+                <ArticleHeader
+                  title={node.title}
+                  date={node.dateGmt}
+                  author={node.author?.node ?? null}
+                  featuredImage={node.featuredImage?.node ?? null}
+                  articleTop={articleAds.articleTop}
+                  aiSummary={
+                    // Render only when the module is on AND this post has a
+                    // non-empty summary — whitespace-only meta counts as none.
+                    aiSummaryConfig?.enabled && node.aiSummary?.trim()
+                      ? node.aiSummary
+                      : null
+                  }
+                />
+              )}
+              {uri === "/" && node.__typename === "Page" && (
+                <h1 class="mb-6 text-3xl font-bold text-primary-dark font-mukta">
+                  {node.title}
+                </h1>
+              )}
+              <div class="font-mukta text-lg md:text-xl">
+                {/* In-content ads: afterIndex 0 renders before the first block */}
+                {(inlineAdsByIndex.get(0) ?? []).map((ad) => (
+                  <AdSlot
+                    ad={ad}
+                    class="my-6 flex aspect-[123/10] w-full items-center justify-center"
+                    placeholder="Advertisement"
+                  />
+                ))}
+                {blocks.map((block, i) => (
+                  <>
+                    <BlockRenderer block={block} />
+                    {/* N blocks rendered → every active inline ad at afterIndex N */}
+                    {(inlineAdsByIndex.get(i + 1) ?? []).map((ad) => (
+                      <AdSlot
+                        ad={ad}
+                        class="my-6 flex aspect-[123/10] w-full items-center justify-center"
+                        placeholder="Advertisement"
+                      />
+                    ))}
+                  </>
+                ))}
+              </div>
+
+              <hr class="border-border mt-8" />
+              {isPost && reactions?.enabled && (
+                <ReactionsBar
+                  postId={node.databaseId}
+                  question={reactions.question}
+                  items={reactions.items}
+                  initialCounts={Object.fromEntries(
+                    reactionCounts.counts.map((c) => [c.key, c.count]),
+                  )}
+                  initialTotal={reactionCounts.total}
+                />
+              )}
+              {isPost && (node.categories?.nodes ?? []).length > 0 && (
+                <RelatedNews
+                  categories={node.categories?.nodes ?? []}
+                  currentPostId={node.databaseId}
+                />
+              )}
+            </article>
+
+            {(hasSidebarAd || recommended.length > 0) && (
+              <aside class="hidden lg:block">
+                <div class="sticky top-24 flex flex-col gap-6">
+                  {/* Sidebar ads — managed in PatrikaOS > Theme > Ads Management */}
+                  {sidebarSlots.map((ad, i) => (
+                    <AdSlot
+                      ad={ad}
+                      class="flex min-h-62.5 w-full items-center justify-center"
+                      placeholder="Advertisement"
+                      loading={i === 0 ? "eager" : "lazy"}
+                    />
+                  ))}
+                  {/* सिफारिस — recommended reads, below the ads */}
+                  <RecommendedNews posts={recommended} />
+                </div>
+              </aside>
+            )}
+          </div>
+        )}
+      </main>
+    )
+  }
+</Layout>

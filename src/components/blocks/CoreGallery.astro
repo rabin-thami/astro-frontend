@@ -1,0 +1,223 @@
+---
+import SafeImage from "../ui/SafeImage.astro";
+/**
+ * WP 6.x+ galleries carry images as nested core/image innerBlocks; older
+ * dumps use attributes.images. Read innerBlocks first, fall back to legacy.
+ * Port of the reference's GalleryGrid: square tiles, hover zoom, lightbox.
+ */
+import type { BlockOf } from "../../lib/wp/types";
+import { htmlToText } from "../../lib/richtext/strip";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreGallery">;
+}
+const { block } = Astro.props;
+
+const innerImages = block.innerBlocks
+  .filter((b) => b.__typename === "CoreImage")
+  .map((b) => {
+    const a = b.attributes as { url?: string; alt?: string; caption?: string };
+    return {
+      url: a.url,
+      // Empty alt in WP falls back to the editor-written caption.
+      alt: a.alt || htmlToText(a.caption ?? ""),
+      caption: a.caption,
+    };
+  })
+  .filter((i) => !!i.url);
+
+const images =
+  innerImages.length > 0
+    ? innerImages
+    : (block.attributes.images ?? []).map((i) => ({
+        ...i,
+        alt: i.alt || htmlToText(i.caption ?? ""),
+      })).filter((i) => !!i.url);
+
+const columns = Math.min(
+  Math.max(block.attributes.columns ?? Math.min(images.length, 3), 1),
+  4,
+);
+const colsClass = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-2 sm:grid-cols-3",
+  4: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4",
+}[columns];
+const gid = `gallery-${block.clientId}`;
+---
+
+{
+  images.length > 0 && (
+    <>
+      <div class={`my-8 grid gap-3 sm:gap-4 ${colsClass}`} data-gallery={gid}>
+        {images.map((img, i) => (
+          <figure class="overflow-hidden rounded-lg bg-muted">
+            <button
+              type="button"
+              class="group relative block aspect-square w-full cursor-zoom-in"
+              data-gallery-open={i}
+              aria-label={`तस्बिर ${i + 1} ठूलो देखाउनुहोस्`}
+            >
+              <SafeImage
+                src={img.url!}
+                alt={img.alt ?? ""}
+                class="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out motion-reduce:transition-none [@media(hover:hover)]:group-hover:scale-105"
+              />
+            </button>
+            {img.caption ? (
+              <figcaption class="text-muted-foreground mt-2 px-1 text-xs leading-relaxed sm:text-sm">
+                <RichText html={img.caption!} />
+              </figcaption>
+            ) : (
+              img.alt && (
+                <figcaption class="text-muted-foreground mt-2 px-1 text-xs leading-relaxed sm:text-sm">
+                  {img.alt}
+                </figcaption>
+              )
+            )}
+          </figure>
+        ))}
+      </div>
+      <dialog
+        class="fixed inset-0 h-full max-h-full w-full max-w-full bg-black/90 p-4 [&::backdrop]:bg-black/80"
+        data-lightbox={gid}
+        aria-label="तस्बिर ग्यालरी"
+      >
+        <div class="lightbox-panel relative flex h-full flex-col items-center justify-center gap-3">
+          <SafeImage
+            src={images[0]?.url ?? ""}
+            class="max-h-[80vh] w-auto max-w-full rounded-md object-contain"
+            data-lightbox-img
+            alt=""
+          />
+          <p
+            class="max-w-2xl text-center text-sm text-white/70"
+            data-lightbox-caption
+          />
+          <div class="absolute inset-x-0 top-0 flex items-center justify-between">
+            <span class="rounded-full bg-white/10 px-3 py-1 text-xs tabular-nums text-white/80" data-lightbox-counter />
+            <button
+              type="button"
+              class="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white transition-colors duration-150 ease-out hover:bg-white/20 active:scale-95 motion-reduce:transition-none"
+              data-lightbox-close
+              aria-label="बन्द गर्नुहोस्"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+          {images.length > 1 && (
+            <div class="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-between px-2">
+              <button
+                type="button"
+                class="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white transition-colors duration-150 ease-out hover:bg-white/20 active:scale-95 motion-reduce:transition-none"
+                data-lightbox-prev
+                aria-label="अघिल्लो तस्बिर"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white transition-colors duration-150 ease-out hover:bg-white/20 active:scale-95 motion-reduce:transition-none"
+                data-lightbox-next
+                aria-label="अर्को तस्बिर"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      </dialog>
+    </>
+  )
+}
+
+<style>
+  /* Lightbox entry: from 0.95 + transparent — never from nothing. */
+  dialog[data-lightbox] .lightbox-panel {
+    animation: lb-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @keyframes lb-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog[data-lightbox] .lightbox-panel {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-gallery]").forEach((grid) => {
+    const lightbox = document.querySelector<HTMLDialogElement>(
+      `[data-lightbox="${grid.dataset.gallery}"]`,
+    );
+    if (!lightbox || lightbox.dataset.wired) return;
+    lightbox.dataset.wired = "true";
+
+    const figures = Array.from(grid.querySelectorAll("figure"));
+    const img = lightbox.querySelector<HTMLImageElement>("[data-lightbox-img]")!;
+    const caption = lightbox.querySelector<HTMLElement>("[data-lightbox-caption]")!;
+    const counter = lightbox.querySelector<HTMLElement>("[data-lightbox-counter]")!;
+    let index = 0;
+    let opener: HTMLButtonElement | null = null;
+
+    const render = () => {
+      const fig = figures[index];
+      const tile = fig?.querySelector("img");
+      if (!tile) return;
+      img.src = tile.src;
+      img.alt = tile.alt;
+      caption.innerHTML =
+        fig.querySelector("figcaption")?.innerHTML ?? "";
+      counter.textContent = `${index + 1} / ${figures.length}`;
+    };
+
+    const open = (i: number, from: HTMLButtonElement) => {
+      index = i;
+      opener = from;
+      render();
+      lightbox.showModal();
+    };
+    const step = (delta: number) => {
+      index = (index + delta + figures.length) % figures.length;
+      render();
+    };
+
+    grid.querySelectorAll<HTMLButtonElement>("[data-gallery-open]").forEach(
+      (btn) =>
+        btn.addEventListener("click", () =>
+          open(Number(btn.dataset.galleryOpen), btn),
+        ),
+    );
+    lightbox
+      .querySelector("[data-lightbox-close]")
+      ?.addEventListener("click", () => lightbox.close());
+    lightbox
+      .querySelector("[data-lightbox-prev]")
+      ?.addEventListener("click", () => step(-1));
+    lightbox
+      .querySelector("[data-lightbox-next]")
+      ?.addEventListener("click", () => step(1));
+
+    // Backdrop click closes; clicks on the panel itself do not.
+    lightbox.addEventListener("click", (e) => {
+      if (e.target === lightbox) lightbox.close();
+    });
+    lightbox.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") step(1);
+      else if (e.key === "ArrowLeft") step(-1);
+    });
+    lightbox.addEventListener("close", () => opener?.focus());
+  });
+</script>

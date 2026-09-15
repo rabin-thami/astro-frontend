@@ -1,0 +1,42 @@
+---
+import SafeImage from "../ui/SafeImage.astro";
+import type { BlockOf } from "../../lib/wp/types";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreCover">;
+}
+const { block } = Astro.props;
+const { url } = block.attributes;
+---
+
+{
+  url && (
+    <div class="relative my-6 overflow-hidden rounded-md aspect-video">
+      <SafeImage
+        src={url}
+        alt=""
+        class="absolute inset-0 w-full h-full object-cover"
+      />
+      <div class="absolute inset-0 bg-linear-to-t from-black/70 to-black/20" />
+      <div class="absolute inset-0 flex items-end p-6">
+        <div class="font-mukta">
+          {block.innerBlocks.map((b) => (
+            <>
+              {b.__typename === "CoreHeading" && (
+                <span class="block text-2xl font-bold text-white">
+                  <RichText html={b.attributes.content} />
+                </span>
+              )}
+              {b.__typename === "CoreParagraph" && (
+                <span class="block text-white/90">
+                  <RichText html={b.attributes.content} />
+                </span>
+              )}
+            </>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}

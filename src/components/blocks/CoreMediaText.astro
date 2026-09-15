@@ -1,0 +1,64 @@
+---
+import SafeImage from "../ui/SafeImage.astro";
+import type { BlockOf } from "../../lib/wp/types";
+import BlockRenderer from "./BlockRenderer.astro";
+
+interface Props {
+  block: BlockOf<"CoreMediaText">;
+}
+
+const { block } = Astro.props;
+const { mediaUrl, mediaAlt, mediaType, mediaPosition, href } = block.attributes;
+const mediaRight = mediaPosition === "right";
+const isVideo = mediaType === "video";
+const hasContent = mediaUrl || block.innerBlocks.length > 0;
+---
+
+{hasContent && (
+  <div class="my-8 grid items-center gap-6 md:grid-cols-2">
+    {mediaUrl && (
+      <figure class={mediaRight ? "md:order-2" : ""}>
+        {isVideo ? (
+          href ? (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              <video
+                class="h-auto w-full rounded-md"
+                controls
+                playsinline
+                preload="metadata"
+                src={mediaUrl}
+              />
+            </a>
+          ) : (
+            <video
+              class="h-auto w-full rounded-md"
+              controls
+              playsinline
+              preload="metadata"
+              src={mediaUrl}
+            />
+          )
+        ) : href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            <SafeImage
+              src={mediaUrl}
+              alt={mediaAlt ?? ""}
+              class="h-auto w-full rounded-md object-cover"
+            />
+          </a>
+        ) : (
+          <SafeImage
+            src={mediaUrl}
+            alt={mediaAlt ?? ""}
+            class="h-auto w-full rounded-md object-cover"
+          />
+        )}
+      </figure>
+    )}
+    <div class={mediaRight && mediaUrl ? "md:order-1" : ""}>
+      {block.innerBlocks.map((b) => (
+        <BlockRenderer block={b} />
+      ))}
+    </div>
+  </div>
+)}

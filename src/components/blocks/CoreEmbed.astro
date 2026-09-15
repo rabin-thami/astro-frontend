@@ -1,0 +1,46 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+
+interface Props {
+  block: BlockOf<"CoreEmbed">;
+}
+const { block } = Astro.props;
+const { url } = block.attributes;
+
+const getEmbedUrl = (raw: string): string | null => {
+  const yt =
+    /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/.exec(raw);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = /vimeo\.com\/(\d+)/.exec(raw);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return null;
+};
+
+const embedUrl = url ? getEmbedUrl(url) : null;
+---
+
+{
+  url &&
+    (embedUrl ? (
+      <div class="my-6 aspect-video overflow-hidden rounded-md">
+        <iframe
+          src={embedUrl}
+          title="Embedded content"
+          allowfullscreen
+          loading="lazy"
+          class="w-full h-full"
+        />
+      </div>
+    ) : (
+      <p class="my-6 text-center">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-primary underline break-all"
+        >
+          {url}
+        </a>
+      </p>
+    ))
+}

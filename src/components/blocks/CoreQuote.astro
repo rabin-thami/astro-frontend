@@ -1,0 +1,46 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import { stripParagraphTags } from "../../lib/richtext/strip";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreQuote">;
+}
+const { block } = Astro.props;
+const { value, citation, align } = block.attributes;
+const isCenter = align === "center";
+const isRight = align === "right";
+---
+
+{
+  value && (
+    <blockquote
+      class:list={[
+        "my-8 border-primary font-mukta text-foreground sm:my-10",
+        "border-l-4 pl-4 text-lg italic leading-relaxed sm:pl-6 sm:text-xl",
+        isCenter && "border-l-0 border-y-4 px-0 text-center",
+        isRight && "text-right",
+      ]}
+    >
+      <svg
+        class="mb-3 h-5 w-5 rotate-180 text-primary sm:h-6 sm:w-6"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+        <path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+      </svg>
+      <RichText html={stripParagraphTags(value)} as="p" />
+      {citation && (
+        <cite class="mt-4 block text-sm not-italic text-muted-foreground sm:text-base">
+          — <RichText html={citation} />
+        </cite>
+      )}
+    </blockquote>
+  )
+}

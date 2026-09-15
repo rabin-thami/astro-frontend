@@ -1,0 +1,101 @@
+---
+/**
+ * Admin-authored image ad slot (PatrikaOS > Theme > Ads Management).
+ *
+ * States, per the WP contract:
+ *  - !enabled                    → render nothing (callers hide their zone)
+ *  - enabled && image && !expired → <img> (wrapped in <a> when linkUrl set)
+ *  - enabled && (!image || past)  → dashed "Advertisement" placeholder
+ *  - Live expiry                  → a timer swaps image → placeholder in
+ *                                   place, no reload (see the shell script)
+ *
+ * Sizing tips: header — any width, ≤ ~90px tall; sidebar — 300×250
+ * recommended (up to 300×600 fits the sticky rail). Callers set the box.
+ */
+import { isSlotActive, type AdSlotConfig } from "../../lib/graphql/queries/getTheme";
+import SafeImage from "../ui/SafeImage.astro";
+
+interface Props {
+  ad: AdSlotConfig | undefined;
+  class?: string;
+  /** Rendered inside the slot box when enabled but missing/expired. */
+  placeholder?: string;
+  /** "eager" for above-the-fold slots (header bar, article banners). */
+  loading?: "lazy" | "eager";
+}
+
+const {
+  ad,
+  class: className,
+  placeholder = "Advertisement",
+  loading = "lazy",
+} = Astro.props;
+const active = isSlotActive(ad);
+const expiredOrEmpty = !!ad?.enabled && !active;
+// Future expiry on an active slot → let the shell timer swap it live.
+const liveExpiry = active && ad!.expiresAt > 0 ? ad!.expiresAt : 0;
+const boxClass = className ?? "";
+const placeholderClass =
+  "font-mukta flex items-center justify-center rounded border border-dashed border-border bg-muted text-sm text-muted-foreground";
+---
+
+{
+  ad?.enabled && (
+    <div data-ad-slot data-expires-at={liveExpiry} class={boxClass}>
+      <div data-ad-active class={active ? boxClass : "hidden"}>
+        {active &&
+          (ad.linkUrl.trim() ? (
+            <a
+              href={ad.linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class={boxClass}
+            >
+              <SafeImage
+                src={ad.imageUrl}
+                alt={ad.alt}
+                loading={loading}
+                fetchpriority={loading === "eager" ? "high" : undefined}
+                class="max-h-full max-w-full rounded-md object-contain"
+              />
+            </a>
+          ) : (
+            <SafeImage
+              src={ad.imageUrl}
+              alt={ad.alt}
+              loading={loading}
+              fetchpriority={loading === "eager" ? "high" : undefined}
+              class="max-h-full max-w-full rounded-md object-contain"
+            />
+          ))}
+      </div>
+      <div
+        data-ad-placeholder
+        class={`${placeholderClass} ${boxClass} ${expiredOrEmpty ? "" : "hidden"}`}
+      >
+        {placeholder}
+      </div>
+    </div>
+  )
+}
+
+<script>
+  // Live expiry: when a slot's expiresAt passes while the page is open,
+  // swap the image for the placeholder in place — no reload.
+  document.querySelectorAll<HTMLElement>("[data-ad-slot]").forEach((slot) => {
+    if (slot.dataset.wired) return;
+    slot.dataset.wired = "true";
+    const expiresAt = Number(slot.dataset.expiresAt) || 0;
+    if (expiresAt <= 0) return;
+    const ms = expiresAt * 1000 - Date.now();
+    // Already past (SSR handled it) or beyond the 32-bit setTimeout ceiling
+    // (~24.8 days) — nothing useful to schedule.
+    if (ms <= 0 || ms > 2147483647) return;
+    window.setTimeout(() => {
+      slot.querySelector<HTMLElement>("[data-ad-active]")?.classList.add("hidden");
+      slot
+        .querySelector<HTMLElement>("[data-ad-placeholder]")
+        ?.classList.remove("hidden");
+    }, ms);
+  });
+</script>

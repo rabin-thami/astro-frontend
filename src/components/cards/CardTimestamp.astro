@@ -1,0 +1,67 @@
+---
+/**
+ * Relative timestamp ("३ घण्टा अगाडि"), rendered server-side.
+ * The reference ticks every minute client-side; with pure-SSR output the
+ * label is frozen at render time, which is the honest trade for this phase.
+ */
+interface Props {
+  date: string | Date;
+  class?: string;
+}
+
+const { date, class: className } = Astro.props;
+
+const NEPALI_DIGITS = ["०", "१", "२", "३", "४", "५", "६", "७", "८", "९"];
+
+function toNepaliDigits(value: number): string {
+  return value
+    .toString()
+    .split("")
+    .map((ch) => (/^\d$/.test(ch) ? NEPALI_DIGITS[Number(ch)] : ch))
+    .join("");
+}
+
+function parseAsUtc(input: string | Date): Date {
+  if (input instanceof Date) return input;
+  const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(input);
+  return new Date(hasOffset ? input : `${input}Z`);
+}
+
+function formatRelative(d: Date): string {
+  if (Number.isNaN(d.getTime())) return "भर्खरै";
+  const diffMs = Date.now() - d.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  const hours = Math.floor(diffMs / 3_600_000);
+  const days = Math.floor(diffMs / 86_400_000);
+  if (minutes < 1) return "भर्खरै";
+  if (minutes < 60) return `${toNepaliDigits(minutes)} मिनेट अगाडि`;
+  if (hours < 24) return `${toNepaliDigits(hours)} घण्टा अगाडि`;
+  if (days < 7) return `${toNepaliDigits(days)} दिन अगाडि`;
+  if (days < 30) return `${toNepaliDigits(Math.floor(days / 7))} हप्ता अगाडि`;
+  return `${toNepaliDigits(days)} दिन अगाडि`;
+}
+
+const parsed = parseAsUtc(date);
+const iso = Number.isNaN(parsed.getTime())
+  ? new Date(0).toISOString()
+  : parsed.toISOString();
+const label = formatRelative(parsed);
+---
+
+<time
+  datetime={iso}
+  class={`text-muted-foreground inline-flex items-center gap-1.5 text-base font-mukta${className ?? ""}`}
+>
+  <svg
+    class="h-3.5 w-3.5 shrink-0"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    ><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg
+  >
+  <span>{label}</span>
+</time>

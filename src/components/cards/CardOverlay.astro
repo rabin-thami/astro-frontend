@@ -1,0 +1,117 @@
+---
+import { Image } from "astro:assets";
+import SafeImage from "../ui/SafeImage.astro";
+import SmartLink from "../ui/SmartLink.astro";
+import CardTimestamp from "./CardTimestamp.astro";
+import { htmlToText } from "../../lib/richtext/strip";
+import noImage from "../../assets/no-image-placeholder.png";
+
+/** Full-bleed image with overlaid headline. Homepage hero / featured slot. */
+interface Props {
+  title: string;
+  href: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  /** Intrinsic dimensions — avoids layout shift and lets the optimizer size the file. */
+  imageWidth?: number;
+  imageHeight?: number;
+  excerpt?: string;
+  timestamp?: string;
+  size?: "xl" | "lg" | "md";
+  aspectRatio?: string;
+  /** Max excerpt words; longer text is cut cleanly with no trailing ellipsis. */
+  excerptWords?: number;
+  class?: string;
+}
+
+const {
+  title,
+  href,
+  imageUrl,
+  imageAlt,
+  imageWidth = 1200,
+  imageHeight = 630,
+  excerpt,
+  timestamp,
+  size = "xl",
+  aspectRatio,
+  excerptWords = 25,
+  class: className,
+} = Astro.props;
+
+  // Request a display-sized variant, not the full media-library width.
+  const outWidth = Math.min(imageWidth, 960);
+  const outHeight = Math.max(1, Math.round((imageHeight / imageWidth) * outWidth));
+
+const SIZE_TITLE = {
+  xl: "text-3xl md:text-5xl",
+  lg: "text-2xl md:text-4xl",
+  md: "text-xl md:text-2xl",
+} as const;
+
+const SIZE_EXCERPT = {
+  xl: "text-xl md:text-2xl",
+  lg: "text-base md:text-lg",
+  md: "text-sm md:text-base",
+} as const;
+
+const SIZE_MIN_HEIGHT = {
+  xl: "min-h-[400px] md:min-h-[600px]",
+  lg: "min-h-[320px] md:min-h-[480px]",
+  md: "min-h-[220px] md:min-h-[280px]",
+} as const;
+
+const excerptWordsList = (excerpt ?? "").trim()
+  ? htmlToText(excerpt ?? "").split(/\s+/).filter(Boolean)
+  : [];
+const shortExcerpt = excerptWordsList.length
+  ? excerptWordsList.slice(0, excerptWords).join(" ")
+  : undefined;
+---
+
+<SmartLink
+  href={href}
+  class={`group bg-card relative block w-full overflow-hidden rounded-md ${SIZE_MIN_HEIGHT[size]} ${className ?? ""}`}
+  style={aspectRatio ? `aspect-ratio: ${aspectRatio};` : undefined}
+>
+  {
+    imageUrl ? (
+      <SafeImage
+        src={imageUrl}
+        alt={imageAlt ?? ""}
+        width={outWidth}
+        height={outHeight}
+        loading="eager"
+        fetchpriority="high"
+        class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+      />
+    ) : (
+      <Image
+        src={noImage}
+        alt={imageAlt ?? ""}
+        width={960}
+        height={960}
+        loading="eager"
+        fetchpriority="high"
+        class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+      />
+    )
+  }
+  <div
+    class="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent"
+  >
+  </div>
+  <div class="absolute inset-x-0 bottom-0 flex flex-col gap-2 p-4 md:p-6">
+    <h3 class={`font-bold text-white ${SIZE_TITLE[size]}`}>
+      {title}
+    </h3>
+    {
+      shortExcerpt && (
+        <p class={`text-xl line-clamp-2 text-white/85 ${SIZE_EXCERPT[size]}`}>
+          {shortExcerpt}
+        </p>
+      )
+    }
+    {timestamp && <CardTimestamp date={timestamp} class="text-white/70" />}
+  </div>
+</SmartLink>

@@ -1,0 +1,128 @@
+---
+import { Image } from "astro:assets";
+import SafeImage from "../ui/SafeImage.astro";
+import SmartLink from "../ui/SmartLink.astro";
+import CardTimestamp from "./CardTimestamp.astro";
+import { htmlToText } from "../../lib/richtext/strip";
+import noImage from "../../assets/no-image-placeholder.png";
+
+/** Image left, text right. Lead/featured items in news list sections. */
+interface Props {
+  title: string;
+  href: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  /** Intrinsic dimensions — avoids layout shift and lets the optimizer size the file. */
+  imageWidth?: number;
+  imageHeight?: number;
+  excerpt?: string;
+  timestamp?: string;
+  size?: "md" | "lg" | "xl";
+  imageClass?: string;
+  titleClass?: string;
+  excerptClass?: string;
+  /** Max excerpt words; longer text is cut cleanly with no trailing ellipsis. */
+  excerptWords?: number;
+  class?: string;
+}
+
+const {
+  title,
+  href,
+  imageUrl,
+  imageAlt,
+  imageWidth = 1200,
+  imageHeight = 630,
+  excerpt,
+  timestamp,
+  size = "md",
+  imageClass,
+  titleClass,
+  excerptClass,
+  excerptWords = 40,
+  class: className,
+} = Astro.props;
+
+  // Request a display-sized variant, not the full media-library width.
+  const outWidth = Math.min(imageWidth, 600);
+  const outHeight = Math.max(1, Math.round((imageHeight / imageWidth) * outWidth));
+
+const SIZE_IMAGE = {
+  md: "md:w-70",
+  lg: "md:w-[560px]",
+  xl: "md:w-[720px]",
+} as const;
+
+const SIZE_TITLE = {
+  md: "text-xl md:text-2xl",
+  lg: "text-3xl md:text-4xl",
+  xl: "text-4xl md:text-5xl",
+} as const;
+
+const SIZE_EXCERPT = {
+  md: "text-md md:text-md",
+  lg: "text-lg md:text-xl",
+  xl: "text-xl md:text-2xl",
+} as const;
+
+const SIZE_EXCERPT_LINES = {
+  md: "line-clamp-3",
+  lg: "line-clamp-4",
+  xl: "line-clamp-5",
+} as const;
+
+// Plain-text cut (excerpts are single-paragraph text; the line-clamp stays
+// as a visual backstop). No trailing ellipsis by design.
+const excerptWordsList = excerpt ? htmlToText(excerpt).split(/\s+/).filter(Boolean) : [];
+const shortExcerpt = excerptWordsList.length
+  ? excerptWordsList.slice(0, excerptWords).join(" ")
+  : undefined;
+---
+
+<SmartLink
+  href={href}
+  class={`group flex flex-col gap-4 overflow-hidden rounded-md md:flex-row md:items-stretch ${className ?? ""}`}
+>
+  <div
+    class={`bg-card relative aspect-[4/3] w-full shrink-0 overflow-hidden md:aspect-auto ${SIZE_IMAGE[size]} ${imageClass ?? ""}`}
+  >
+    {
+      imageUrl ? (
+        <SafeImage
+          src={imageUrl}
+          alt={imageAlt ?? ""}
+          width={outWidth}
+          height={outHeight}
+          loading="lazy"
+          class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+        />
+      ) : (
+        <Image
+          src={noImage}
+          alt=""
+          width={600}
+          height={600}
+          loading="lazy"
+          class="absolute inset-0 h-full w-full object-cover"
+        />
+      )
+    }
+  </div>
+  <div class="flex flex-1 flex-col justify-center gap-2 p-4">
+    <h3
+      class={`font-mukta text-foreground group-hover:text-primary font-semibold transition-colors ${SIZE_TITLE[size]} ${titleClass ?? ""}`}
+    >
+      {title}
+    </h3>
+    {
+      shortExcerpt && (
+        <p
+          class={`font-mukta text-muted-foreground leading-relaxed ${SIZE_EXCERPT[size]} ${SIZE_EXCERPT_LINES[size]} ${excerptClass ?? ""}`}
+        >
+          {shortExcerpt}
+        </p>
+      )
+    }
+    {timestamp && <CardTimestamp date={timestamp} />}
+  </div>
+</SmartLink>

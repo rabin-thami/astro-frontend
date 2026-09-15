@@ -1,0 +1,74 @@
+---
+/**
+ * Safe wrapper over Astro's image pipeline for CMS images we can't vouch for.
+ *
+ * `<Image>` throws — killing the whole page — when a remote URL is not in
+ * `image.remotePatterns`, is unreachable, or has unreadable metadata. Editors
+ * paste images from anywhere, so content blocks, avatars and the logo
+ * fallback go through here instead: optimize when possible (same pipeline,
+ * same /_image output), fall back to the raw URL when not. Never throws.
+ *
+ * Every CMS-sourced image goes through here — the host is never guaranteed
+ * and a throw would kill the page. Local imports with known dimensions can
+ * still use the plain <Image>.
+ */
+import { getImage } from "astro:assets";
+
+interface Props {
+  src: string;
+  alt?: string;
+  class?: string;
+  width?: number;
+  height?: number;
+  loading?: "lazy" | "eager";
+  fetchpriority?: "high" | "auto" | "low";
+}
+
+const {
+  src,
+  alt = "",
+  class: className,
+  width,
+  height,
+  loading = "lazy",
+  fetchpriority,
+  ...rest
+} = Astro.props;
+
+let outSrc = src;
+let outWidth = width;
+let outHeight = height;
+
+// Animated GIFs (ad creatives, stickers) must ship byte-identical — any
+// transform flattens them to the first frame. Pass through untouched.
+const isAnimatedCandidate = /\.gif($|\?)/i.test(src);
+
+try {
+  if (isAnimatedCandidate) throw new Error("passthrough");
+  const img = await getImage({
+    src,
+    // Known dimensions → the exact same transform <Image> would apply;
+    // otherwise let the pipeline infer the size.
+    ...(width && height
+      ? { width, height }
+      : { inferSize: true, ...(width ? { width } : {}) }),
+  });
+  outSrc = img.src;
+  outWidth = Number(img.attributes.width) || width;
+  outHeight = Number(img.attributes.height) || height;
+} catch {
+  // Not allow-listed / unreachable / unreadable — ship the original URL.
+}
+---
+
+<img
+  src={outSrc}
+  alt={alt}
+  width={outWidth}
+  height={outHeight}
+  loading={loading}
+  fetchpriority={fetchpriority}
+  decoding="async"
+  class={className}
+  {...rest}
+/>

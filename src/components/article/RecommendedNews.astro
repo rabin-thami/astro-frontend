@@ -1,0 +1,72 @@
+---
+/**
+ * सिफारिस (Recommended) rail widget — small-thumb list under the sidebar ads.
+ * Data comes from the caller (slug page fetches it) so the aside can decide
+ * its own visibility from the same array.
+ */
+import { Image } from "astro:assets";
+import SafeImage from "../ui/SafeImage.astro";
+import SmartLink from "../ui/SmartLink.astro";
+import noImage from "../../assets/no-image-placeholder.png";
+
+export interface RecommendedPost {
+  title: string;
+  link: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+}
+
+interface Props {
+  posts: RecommendedPost[];
+  heading?: string;
+}
+
+const { posts, heading = "सिफारिस" } = Astro.props;
+---
+
+{
+  posts.length > 0 && (
+    <div>
+      <div class="border-b-2 border-primary pb-2">
+        <h2 class="font-khand text-primary text-xl font-semibold">{heading}</h2>
+      </div>
+      <ul class="divide-border divide-y">
+        {posts.map((post) => (
+          <li>
+            <SmartLink
+              href={post.link}
+              class="group flex items-start gap-3 py-3"
+            >
+              <div class="bg-muted relative h-16 w-16 shrink-0 overflow-hidden">
+                {post.imageUrl ? (
+                  <SafeImage
+                    src={post.imageUrl}
+                    alt={post.imageAlt ?? ""}
+                    width={128}
+                    height={128}
+                    loading="lazy"
+                    class="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={noImage}
+                    alt=""
+                    width={128}
+                    height={128}
+                    loading="lazy"
+                    class="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
+              </div>
+              <h3 class="font-mukta text-foreground group-hover:text-primary line-clamp-3 text-base leading-snug font-medium transition-colors">
+                {post.title}
+              </h3>
+            </SmartLink>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}

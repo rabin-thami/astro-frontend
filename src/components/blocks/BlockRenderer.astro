@@ -1,0 +1,60 @@
+---
+import type { HierarchicalBlock } from "../../lib/wp/types";
+import CoreParagraph from "./CoreParagraph.astro";
+import CoreFreeform from "./CoreFreeform.astro";
+import CoreHeading from "./CoreHeading.astro";
+import CoreImage from "./CoreImage.astro";
+import CoreList from "./CoreList.astro";
+import CoreSeparator from "./CoreSeparator.astro";
+import CoreQuote from "./CoreQuote.astro";
+import CorePullquote from "./CorePullquote.astro";
+import CoreGallery from "./CoreGallery.astro";
+import CoreCover from "./CoreCover.astro";
+import CoreTable from "./CoreTable.astro";
+import CoreButtons from "./CoreButtons.astro";
+import CoreColumns from "./CoreColumns.astro";
+import CoreEmbed from "./CoreEmbed.astro";
+import CoreMore from "./CoreMore.astro";
+import CoreReadMore from "./CoreReadMore.astro";
+import CoreSocialLinks from "./CoreSocialLinks.astro";
+import CoreAudio from "./CoreAudio.astro";
+import CoreVideo from "./CoreVideo.astro";
+import CoreMediaText from "./CoreMediaText.astro";
+import CoreSpacer from "./CoreSpacer.astro";
+import CoreTabs from "./CoreTabs.astro";
+// Self-import for the transparent structural wrappers below.
+import Self from "./BlockRenderer.astro";
+
+interface Props {
+  block: HierarchicalBlock;
+}
+
+const { block } = Astro.props;
+---
+
+{block.__typename === "CoreParagraph" && <CoreParagraph block={block} />}
+{block.__typename === "CoreFreeform" && <CoreFreeform block={block} />}
+{block.__typename === "CoreHeading" && <CoreHeading block={block} />}
+{block.__typename === "CoreImage" && <CoreImage block={block} />}
+{block.__typename === "CoreList" && <CoreList block={block} />}
+{block.__typename === "CoreSeparator" && <CoreSeparator />}
+{block.__typename === "CoreQuote" && <CoreQuote block={block} />}
+{block.__typename === "CorePullquote" && <CorePullquote block={block} />}
+{block.__typename === "CoreGallery" && <CoreGallery block={block} />}
+{block.__typename === "CoreCover" && <CoreCover block={block} />}
+{block.__typename === "CoreTable" && <CoreTable block={block} />}
+{block.__typename === "CoreButtons" && <CoreButtons block={block} />}
+{block.__typename === "CoreColumns" && <CoreColumns block={block} />}
+{block.__typename === "CoreEmbed" && <CoreEmbed block={block} />}
+{block.__typename === "CoreMore" && <CoreMore block={block} />}
+{block.__typename === "CoreReadMore" && <CoreReadMore block={block} />}
+{block.__typename === "CoreSocialLinks" && <CoreSocialLinks block={block} />}
+{block.__typename === "CoreAudio" && <CoreAudio block={block} />}
+{block.__typename === "CoreVideo" && <CoreVideo block={block} />}
+{block.__typename === "CoreMediaText" && <CoreMediaText block={block} />}
+{block.__typename === "CoreSpacer" && <CoreSpacer block={block} />}
+{block.__typename === "CoreTabs" && <CoreTabs block={block} />}
+{/* Structural wrappers render only their children: tab labels come from
+    the panels, so the tab-list itself stays invisible. */}
+{block.__typename === "CoreTabPanels" &&
+  block.innerBlocks.map((b) => <Self block={b} />)}

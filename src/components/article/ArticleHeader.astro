@@ -1,0 +1,95 @@
+---
+import CardTimestamp from "../cards/CardTimestamp.astro";
+import AiSummary from "./AiSummary.astro";
+import SafeImage from "../ui/SafeImage.astro";
+import AdSlot from "../ads/AdSlot.astro";
+import type { AdSlotConfig } from "../../lib/graphql/queries/getTheme";
+
+interface Props {
+  title: string;
+  date: string;
+  author: {
+    name: string | null;
+    slug: string;
+    avatar: { url: string } | null;
+  } | null;
+  featuredImage: {
+    sourceUrl: string;
+    altText: string | null;
+    mediaDetails?: { width: number | null; height: number | null } | null;
+  } | null;
+  /** AI Summary text — card renders only when non-empty (module gate lives in the page). */
+  aiSummary?: string | null;
+  /** Top-of-article banner (WP ads.articleTop) — after the featured image. */
+  articleTop?: AdSlotConfig | null;
+}
+
+const { title, date, author, featuredImage, aiSummary, articleTop } =
+  Astro.props;
+---
+
+<>
+  <h1
+    class="font-mukta text-primary border-b-2 border-primary pb-4 text-2xl font-semibold leading-snug sm:text-4xl lg:text-5xl"
+  >
+    {title}
+  </h1>
+
+  <div
+    class="text-muted-foreground mt-3 mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"
+  >
+    {
+      author && (
+        <div class="flex items-center gap-2">
+          <div class="bg-primary text-primary-foreground relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold">
+            <span>{(author.name ?? "A").charAt(0).toUpperCase()}</span>
+            {author.avatar?.url && (
+              <SafeImage
+                src={author.avatar.url}
+                alt={author.name ?? "Author"}
+                width={32}
+                height={32}
+                loading="eager"
+                class="absolute inset-0 h-full w-full object-cover"
+              />
+            )}
+          </div>
+          {author.name && (
+            <span class="font-mukta font-medium text-foreground">
+              {author.name}
+            </span>
+          )}
+        </div>
+      )
+    }
+    <CardTimestamp date={date} />
+  </div>
+
+  {
+    featuredImage && (
+      <div class="relative mb-6 aspect-video w-full overflow-hidden rounded-md">
+        <SafeImage
+          src={featuredImage.sourceUrl}
+          alt={featuredImage.altText ?? title}
+          width={featuredImage.mediaDetails?.width ?? 1200}
+          height={featuredImage.mediaDetails?.height ?? 630}
+          loading="eager"
+          fetchpriority="high"
+          class="absolute inset-0 h-full w-full object-cover"
+        />
+      </div>
+    )
+  }
+
+  {
+    articleTop && (
+      <AdSlot
+        ad={articleTop}
+        class="mb-6 flex aspect-[123/10] w-full items-center justify-center"
+        placeholder="Advertisement"
+        loading="eager"
+      />
+    )
+  }
+  {aiSummary && <AiSummary summary={aiSummary} />}
+</>

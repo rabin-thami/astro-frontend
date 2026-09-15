@@ -1,0 +1,691 @@
+---
+import { getLayout, type NavItem } from "../../lib/graphql/queries/getLayout";
+import type { SigninConfig } from "../../lib/graphql/queries/getTheme";
+import { getNepaliDate } from "../../lib/nepali-date";
+import Logo from "./Logo.astro";
+import AdSlot from "../ads/AdSlot.astro";
+import type { AdSlotConfig } from "../../lib/graphql/queries/getTheme";
+
+interface Props {
+  signin?: SigninConfig;
+  ad?: AdSlotConfig;
+}
+
+const { signin, ad } = Astro.props;
+const showSignin = !!signin?.enabled && !!signin.signinUrl;
+
+const layout = Astro.locals.layout ?? (await getLayout());
+const { logo, nav } = layout;
+const pathname = Astro.url.pathname.replace(/\/$/, "") || "/";
+const nepaliDate = getNepaliDate();
+
+const isActive = (item: NavItem) => pathname === item.href;
+---
+
+<header>
+  {/* top bar: logo + Nepali date (desktop) — fades out once scrolled */}
+  <div
+    id="header-top"
+    class="mx-auto mt-5 hidden max-w-7xl items-center justify-between px-4 sm:px-6 md:flex"
+    style="transition: opacity 300ms cubic-bezier(0.23,1,0.32,1), transform 300ms cubic-bezier(0.23,1,0.32,1);"
+  >
+    <div class="flex flex-col items-start">
+      <a href="/" aria-label="Home">
+        <Logo logo={logo} />
+      </a>
+      <div class="font-mukta mt-3">{nepaliDate}</div>
+    </div>
+    {/* header ad slot — managed in PatrikaOS > Theme > Ads Management.
+        Height is reserved (90px) so the ad never shifts the layout (CLS). */}
+    {ad?.enabled && (
+      <div class="hidden min-w-0 lg:block lg:w-90 xl:w-125 2xl:w-182">
+        <AdSlot
+          ad={ad}
+          class="flex h-22.5 w-full items-center justify-end"
+          placeholder="Advertisement"
+          loading="eager"
+        />
+      </div>
+    )}
+  </div>
+
+  {/* spacer keeps the page from jumping when the nav pins to fixed */}
+  <div id="nav-spacer" class="hidden md:block" style="display: none;"></div>
+
+  {/* nav bar — relative until scrollY > 120, then pinned fixed */}
+  <nav id="site-nav" class="bg-primary relative z-50 mt-0 w-full md:mt-4">
+    <div
+      class="font-khand mx-auto flex max-w-7xl items-center justify-between px-4 py-4 text-base font-semibold text-primary-foreground sm:px-6 lg:text-lg"
+    >
+      {/* desktop links */}
+      <ul
+        id="desktop-nav"
+        class="hidden items-center justify-between gap-3 md:flex lg:gap-6"
+      >
+        {/* compact logo — slides in once scrolled */}
+        <li
+          id="nav-compact-logo"
+          class="flex items-center overflow-hidden"
+          style="max-width: 0px; opacity: 0; transform: translateY(4px); pointer-events: none; margin-right: -24px;"
+        >
+          <a href="/" aria-label="Home" class="shrink-0">
+            <Logo logo={logo} compact />
+          </a>
+        </li>
+
+        {
+          nav.map((item) => {
+            const hasChildren = (item.children?.length ?? 0) > 0;
+            return (
+              <li
+                class="relative mt-1"
+                data-dropdown={hasChildren ? item.href : undefined}
+              >
+                <a
+                  href={item.href}
+                  aria-haspopup={hasChildren ? "menu" : undefined}
+                  aria-expanded={hasChildren ? "false" : undefined}
+                  data-dropdown-toggle={hasChildren ? item.href : undefined}
+                  class={`flex items-center gap-1 [transition:color_150ms_cubic-bezier(0.23,1,0.32,1),transform_100ms_cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] ${
+                    isActive(item)
+                      ? "text-primary-foreground/90"
+                      : "text-primary-foreground hover:text-primary-foreground/80"
+                  }`}
+                >
+                  {item.label}
+                  {hasChildren && (
+                    <svg
+                      data-chevron={item.href}
+                      class="h-3.5 w-3.5 transition-transform duration-200"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  )}
+                </a>
+                {hasChildren && (
+                  <div
+                    role="menu"
+                    data-dropdown-menu={item.href}
+                    class="dropdown-panel font-khand absolute top-full left-0 z-50 mt-2 hidden min-w-60 rounded-md border border-primary-dark/50 bg-primary text-base font-semibold text-primary-foreground shadow-2xl before:absolute before:-top-2 before:left-0 before:h-2 before:w-full before:content-['']"
+                  >
+                    {item.children!.map((child) => (
+                      <a
+                        href={child.href}
+                        role="menuitem"
+                        data-dropdown-link
+                        class={`flex items-center border-b border-primary-foreground/15 px-4 py-2.5 text-[15px] font-medium transition-colors first:rounded-t-md last:rounded-b-md last:border-b-0 ${
+                          pathname === child.href
+                            ? "bg-primary-dark text-primary-foreground"
+                            : "text-primary-foreground hover:bg-primary-foreground hover:text-primary"
+                        }`}
+                      >
+                        <span class="truncate">{child.label}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })
+        }
+        {
+          /* sign-in link — last item, driven by PatrikaOS Theme → Sign In / Join */
+        }
+        {
+          showSignin && (
+            <li class="relative mt-1">
+              <a
+                href={signin!.signinUrl}
+                class="flex items-center gap-1 [transition:color_150ms_cubic-bezier(0.23,1,0.32,1),transform_100ms_cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97] text-primary-foreground hover:text-primary-foreground/80"
+              >
+                लगइन
+              </a>
+            </li>
+          )
+        }
+      </ul>
+
+      {/* live search — desktop dropdown, results from /api/search */}
+      <div
+        id="search-box"
+        class="relative hidden items-center md:flex md:max-w-56 lg:w-72"
+      >
+        <svg
+          class="pointer-events-none absolute left-3 h-4 w-4 text-primary-foreground/70"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="खोज्नुहोस्..."
+          autocomplete="off"
+          aria-label="खोज्नुहोस्"
+          class="font-mukta w-full rounded-md border border-primary-foreground/20 bg-primary-foreground/10 py-2 pr-3 pl-9 text-sm text-primary-foreground transition-colors outline-none placeholder:text-primary-foreground/60 focus:border-primary-foreground/40 focus:bg-primary-foreground/15"
+        />
+        <div
+          id="search-results"
+          class="text-foreground border-border bg-background absolute top-full right-0 left-0 z-50 mt-2 hidden overflow-hidden rounded-md border shadow-lg"
+        >
+        </div>
+      </div>
+
+      {/* mobile: logo + hamburger */}
+      <div class="flex w-full items-center justify-between md:hidden">
+        <a href="/" class="flex items-center gap-5">
+          <Logo logo={logo} compact />
+          <span class="text-2xl">{logo.text}</span>
+        </a>
+        <button
+          id="menu-toggle"
+          aria-label="Toggle menu"
+          aria-expanded="false"
+          class="flex h-8 w-8 flex-col items-center justify-center gap-1.25 [transition:transform_100ms_cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]"
+        >
+          <span
+            class="bar block h-0.5 w-6 rounded-full bg-primary-foreground"
+            style="transition: transform 250ms cubic-bezier(0.23,1,0.32,1), opacity 200ms ease-out;"
+          ></span>
+          <span
+            class="bar block h-0.5 w-6 rounded-full bg-primary-foreground"
+            style="transition: opacity 150ms ease-out;"></span>
+          <span
+            class="bar block h-0.5 w-6 rounded-full bg-primary-foreground"
+            style="transition: transform 250ms cubic-bezier(0.23,1,0.32,1), opacity 200ms ease-out;"
+          ></span>
+        </button>
+      </div>
+    </div>
+
+    {/* date badge — appears under the nav once scrolled */}
+    <div
+      id="nav-date-badge"
+      class="absolute top-full left-4 mt-2 md:left-[max(1.5rem,calc((100vw-78rem)/2))] md:right-auto"
+      style="opacity: 0; transform: translateY(0); pointer-events: none; transition: opacity 300ms cubic-bezier(0.23,1,0.32,1), transform 300ms cubic-bezier(0.23,1,0.32,1);"
+    >
+      <span
+        class="font-mukta bg-foreground px-2 py-0 text-xs text-primary-foreground shadow-md"
+      >
+        {nepaliDate}
+      </span>
+    </div>
+  </nav>
+
+  {/* mobile overlay */}
+  <div
+    id="mobile-overlay"
+    class="fixed inset-0 z-40 bg-foreground md:hidden"
+    style="opacity: 0; pointer-events: none; transition: opacity 200ms cubic-bezier(0.23,1,0.32,1);"
+  >
+  </div>
+
+  {/* mobile slide-in drawer */}
+  <div
+    id="mobile-menu"
+    class="bg-primary fixed top-0 right-0 bottom-0 z-50 w-72 md:hidden"
+    style="transform: translateX(100%); transition: transform 250ms cubic-bezier(0.23,1,0.32,1);"
+    aria-hidden="true"
+  >
+    <div
+      class="flex items-center justify-between border-b border-primary-foreground/20 px-6 py-4"
+    >
+      <a
+        href="/"
+        aria-label="Home"
+        data-drawer-close
+        class="flex items-center gap-3"
+      >
+        <Logo logo={logo} compact />
+        <span class="font-khand text-2xl font-semibold text-primary-foreground">
+          {logo.text}
+        </span>
+      </a>
+      <button
+        id="menu-close"
+        aria-label="Close menu"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-primary-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-primary-foreground/10 active:scale-95"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          ><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg
+        >
+      </button>
+    </div>
+
+    <ul class="font-khand flex flex-col px-6 py-4 text-xl font-semibold">
+      {
+        nav.map((item) => (
+          <li
+            data-drawer-item
+            style="opacity: 0; transform: translateX(20px); transition: opacity 150ms ease-out, transform 150ms ease-out;"
+          >
+            <a
+              href={item.href}
+              data-drawer-close
+              class={`block border-b border-primary-foreground/10 py-3 [transition:color_150ms_cubic-bezier(0.23,1,0.32,1),transform_100ms_cubic-bezier(0.23,1,0.32,1)] active:scale-[0.98] ${
+                isActive(item)
+                  ? "text-primary-foreground/90"
+                  : "text-primary-foreground/90 hover:text-primary-foreground"
+              }`}
+            >
+              {item.label}
+            </a>
+          </li>
+        ))
+      }
+      {
+        showSignin && (
+          <li
+            data-drawer-item
+            style="opacity: 0; transform: translateX(20px); transition: opacity 150ms ease-out, transform 150ms ease-out;"
+          >
+            <a
+              href={signin!.signinUrl}
+              data-drawer-close
+              class="block border-b border-primary-foreground/10 py-3 text-primary-foreground/90 hover:text-primary-foreground [transition:color_150ms_cubic-bezier(0.23,1,0.32,1),transform_100ms_cubic-bezier(0.23,1,0.32,1)] active:scale-[0.98]"
+            >
+              लगइन
+            </a>
+          </li>
+        )
+      }
+    </ul>
+  </div>
+
+  <div class="block h-0 md:hidden"></div>
+</header>
+
+<style>
+  @keyframes dropdown-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .dropdown-panel:not(.hidden) {
+    animation: dropdown-in 160ms cubic-bezier(0.23, 1, 0.32, 1);
+    transform-origin: top left;
+  }
+</style>
+
+<script>
+  const nav = document.getElementById("site-nav");
+  const headerTop = document.getElementById("header-top");
+  const spacer = document.getElementById("nav-spacer");
+  const compactLogo = document.getElementById("nav-compact-logo");
+  const dateBadge = document.getElementById("nav-date-badge");
+
+  const EASE = "cubic-bezier(0.23,1,0.32,1)";
+
+  function setScrolled(scrolled: boolean) {
+    if (!nav) return;
+    // pin / unpin the nav
+    nav.style.position = scrolled ? "fixed" : "relative";
+    nav.style.top = "0";
+    nav.style.left = "0";
+    nav.style.right = "0";
+    nav.style.marginTop = scrolled ? "0" : "";
+    nav.style.boxShadow = scrolled ? "0 2px 12px rgba(0,0,0,0.15)" : "none";
+    nav.style.transition = `box-shadow 200ms ${EASE}`;
+    // spacer prevents the page jumping when the nav leaves the flow
+    if (spacer) {
+      if (scrolled) {
+        spacer.style.display = "block";
+        spacer.style.height = `${nav.offsetHeight}px`;
+      } else {
+        spacer.style.display = "none";
+      }
+    }
+    // top bar fades out
+    if (headerTop) {
+      headerTop.style.opacity = scrolled ? "0" : "1";
+      headerTop.style.transform = scrolled
+        ? "translateY(-4px)"
+        : "translateY(0)";
+      headerTop.style.pointerEvents = scrolled ? "none" : "auto";
+    }
+    // compact logo slides in
+    if (compactLogo) {
+      compactLogo.style.maxWidth = scrolled ? "120px" : "0px";
+      compactLogo.style.opacity = scrolled ? "1" : "0";
+      compactLogo.style.transform = scrolled
+        ? "translateY(0)"
+        : "translateY(4px)";
+      compactLogo.style.pointerEvents = scrolled ? "auto" : "none";
+      compactLogo.style.marginRight = scrolled ? "0px" : "-24px";
+      compactLogo.style.transition = scrolled
+        ? `max-width 300ms ${EASE}, opacity 300ms ${EASE}, transform 300ms ${EASE}, margin 300ms ${EASE}`
+        : `max-width 150ms ${EASE}, opacity 150ms ${EASE}, transform 150ms ${EASE}, margin 150ms ${EASE}`;
+    }
+    // date badge appears
+    if (dateBadge) {
+      dateBadge.style.opacity = scrolled ? "1" : "0";
+      dateBadge.style.transform = scrolled
+        ? "translateY(-4px)"
+        : "translateY(0)";
+      dateBadge.style.pointerEvents = scrolled ? "auto" : "none";
+      dateBadge.style.transition = scrolled
+        ? `opacity 150ms ${EASE}, transform 150ms ${EASE}`
+        : `opacity 300ms ${EASE}, transform 300ms ${EASE}`;
+    }
+  }
+
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      setScrolled(window.scrollY > 120);
+      ticking = false;
+    });
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  setScrolled(window.scrollY > 120);
+
+  // ---- desktop dropdowns (hover + outside-click + Escape) ----
+  const desktopNav = document.getElementById("desktop-nav");
+  let openHref: string | null = null;
+
+  function setOpen(href: string | null) {
+    openHref = href;
+    document.querySelectorAll("[data-dropdown-menu]").forEach((menu) => {
+      const isTarget = menu.getAttribute("data-dropdown-menu") === href;
+      menu.classList.toggle("hidden", !isTarget);
+    });
+    document.querySelectorAll("[data-dropdown-toggle]").forEach((toggle) => {
+      toggle.setAttribute(
+        "aria-expanded",
+        toggle.getAttribute("data-dropdown-toggle") === href ? "true" : "false",
+      );
+    });
+    document.querySelectorAll<HTMLElement>("[data-chevron]").forEach((chev) => {
+      chev.style.transform =
+        chev.getAttribute("data-chevron") === href ? "rotate(180deg)" : "";
+    });
+  }
+
+  document.querySelectorAll("[data-dropdown]").forEach((li) => {
+    const href = li.getAttribute("data-dropdown");
+    if (!href) return;
+    li.addEventListener("mouseenter", () => setOpen(href));
+    li.addEventListener("mouseleave", () => {
+      if (openHref === href) setOpen(null);
+    });
+  });
+  document.querySelectorAll("[data-dropdown-link]").forEach((a) => {
+    a.addEventListener("click", () => setOpen(null));
+  });
+  document.addEventListener("mousedown", (e) => {
+    if (!openHref || !(e.target instanceof Node)) return;
+    if (!desktopNav?.contains(e.target)) setOpen(null);
+  });
+
+  // ---- mobile drawer ----
+  const toggle = document.getElementById("menu-toggle");
+  const overlay = document.getElementById("mobile-overlay");
+  const drawer = document.getElementById("mobile-menu");
+  const closeBtn = document.getElementById("menu-close");
+  const bars = toggle
+    ? Array.from(toggle.querySelectorAll<HTMLElement>(".bar"))
+    : [];
+  const drawerItems = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-drawer-item]"),
+  );
+  let menuOpen = false;
+
+  function openDrawer() {
+    menuOpen = true;
+    toggle?.setAttribute("aria-expanded", "true");
+    drawer?.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    if (overlay) {
+      overlay.style.opacity = "0.4";
+      overlay.style.pointerEvents = "auto";
+      overlay.style.transition = `opacity 300ms ${EASE}`;
+    }
+    if (drawer) {
+      drawer.style.transform = "translateX(0)";
+      drawer.style.transition = "transform 350ms cubic-bezier(0.32,0.72,0,1)";
+      drawer.style.boxShadow = "-4px 0 24px rgba(0,0,0,0.2)";
+    }
+    if (bars && bars.length === 3) {
+      bars[0].style.transform = "translateY(7px) rotate(45deg)";
+      bars[1].style.opacity = "0";
+      bars[2].style.transform = "translateY(-7px) rotate(-45deg)";
+    }
+    drawerItems.forEach((el, i) => {
+      el.style.opacity = "1";
+      el.style.transform = "translateX(0)";
+      el.style.transition = `opacity 300ms ${EASE} ${80 + i * 40}ms, transform 300ms ${EASE} ${80 + i * 40}ms`;
+    });
+  }
+
+  function closeDrawer() {
+    if (!menuOpen) return;
+    menuOpen = false;
+    toggle?.setAttribute("aria-expanded", "false");
+    drawer?.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+    if (overlay) {
+      overlay.style.opacity = "0";
+      overlay.style.pointerEvents = "none";
+      overlay.style.transition = `opacity 200ms ${EASE}`;
+    }
+    if (drawer) {
+      drawer.style.transform = "translateX(100%)";
+      drawer.style.transition = `transform 250ms ${EASE}`;
+      drawer.style.boxShadow = "none";
+    }
+    if (bars && bars.length === 3) {
+      bars[0].style.transform = "";
+      bars[1].style.opacity = "";
+      bars[2].style.transform = "";
+    }
+    drawerItems.forEach((el) => {
+      el.style.opacity = "0";
+      el.style.transform = "translateX(20px)";
+      el.style.transition = "opacity 150ms ease-out, transform 150ms ease-out";
+    });
+  }
+
+  toggle?.addEventListener("click", () =>
+    menuOpen ? closeDrawer() : openDrawer(),
+  );
+  closeBtn?.addEventListener("click", closeDrawer);
+  overlay?.addEventListener("click", closeDrawer);
+  document.querySelectorAll("[data-drawer-close]").forEach((a) => {
+    a.addEventListener("click", closeDrawer);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (openHref) setOpen(null);
+      closeDrawer();
+    }
+  });
+</script>
+
+<script>
+  // ── live search ──────────────────────────────────────────────────────────
+  // Debounced autocomplete against /api/search (WPGraphQL search). Ported
+  // from the reference app's SearchBox: 2-char minimum, 300ms debounce,
+  // Enter opens the first hit, Escape closes, click-outside dismisses.
+  interface SearchResult {
+    id: number;
+    title: string;
+    link: string;
+    imageUrl: string | null;
+    imageAlt: string;
+  }
+
+  const searchBox = document.getElementById("search-box");
+  const searchInput = document.getElementById(
+    "search-input",
+  ) as HTMLInputElement | null;
+  const searchPanel = document.getElementById("search-results");
+
+  if (searchBox && searchInput && searchPanel) {
+    const MIN_LENGTH = 2;
+    const EMPTY_MESSAGE = "कुनै परिणाम फेला परेन";
+
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    let requestSeq = 0;
+    let results: SearchResult[] = [];
+
+    const hidePanel = () => {
+      // Dismissal (clear/Escape/outside click) must beat any in-flight
+      // response — bumping the sequence drops it when it lands.
+      requestSeq += 1;
+      searchPanel.classList.add("hidden");
+      searchPanel.replaceChildren();
+    };
+
+    const showPanel = () => {
+      searchPanel.classList.remove("hidden");
+    };
+
+    const renderSkeleton = () => {
+      showPanel();
+      searchPanel.replaceChildren();
+      for (let i = 0; i < 3; i += 1) {
+        const row = document.createElement("div");
+        row.className = "flex gap-3 p-3";
+        const thumb = document.createElement("div");
+        thumb.className = "h-14 w-14 shrink-0 animate-pulse rounded-md bg-muted";
+        const lines = document.createElement("div");
+        lines.className = "flex flex-1 flex-col gap-2 py-1";
+        const first = document.createElement("div");
+        first.className = "h-3 animate-pulse rounded bg-muted";
+        const second = document.createElement("div");
+        second.className = "h-3 w-3/4 animate-pulse rounded bg-muted";
+        lines.append(first, second);
+        row.append(thumb, lines);
+        searchPanel.append(row);
+      }
+    };
+
+    const renderResults = (posts: SearchResult[]) => {
+      results = posts;
+      showPanel();
+      searchPanel.replaceChildren();
+
+      if (posts.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "font-mukta text-muted-foreground px-4 py-3 text-sm";
+        empty.textContent = EMPTY_MESSAGE;
+        searchPanel.append(empty);
+        return;
+      }
+
+      const list = document.createElement("ul");
+      list.className = "divide-border divide-y";
+      for (const post of posts) {
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = post.link;
+        link.className =
+          "hover:bg-muted flex items-center gap-3 px-3 py-2.5 transition-colors";
+
+        if (post.imageUrl) {
+          const img = document.createElement("img");
+          img.src = post.imageUrl;
+          img.alt = post.imageAlt;
+          img.loading = "lazy";
+          img.width = 56;
+          img.height = 56;
+          img.className = "h-14 w-14 shrink-0 rounded-md object-cover";
+          link.append(img);
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className =
+            "border-border bg-muted h-14 w-14 shrink-0 rounded-md border";
+          link.append(placeholder);
+        }
+
+        const title = document.createElement("span");
+        title.className = "font-mukta line-clamp-2 text-sm leading-snug";
+        title.textContent = post.title;
+        link.append(title);
+
+        item.append(link);
+        list.append(item);
+      }
+      searchPanel.append(list);
+    };
+
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.trim();
+      clearTimeout(debounce);
+
+      if (query.length < MIN_LENGTH) {
+        results = [];
+        hidePanel();
+        return;
+      }
+
+      renderSkeleton();
+      const seq = ++requestSeq;
+      debounce = setTimeout(async () => {
+        let posts: SearchResult[] = [];
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+          const json = (await res.json()) as { posts?: SearchResult[] };
+          posts = Array.isArray(json.posts) ? json.posts : [];
+        } catch {
+          // Network hiccup — show the empty state instead of an error.
+        }
+        if (seq !== requestSeq) return; // a newer keystroke superseded this one
+        renderResults(posts);
+      }, 300);
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        hidePanel();
+        return;
+      }
+      if (e.key === "Enter" && results[0]) {
+        e.preventDefault();
+        window.location.assign(results[0].link);
+      }
+    });
+
+    searchInput.addEventListener("focus", () => {
+      if (results.length > 0) showPanel();
+    });
+
+    document.addEventListener("pointerdown", (e) => {
+      if (!searchBox.contains(e.target as Node)) hidePanel();
+    });
+  }
+</script>

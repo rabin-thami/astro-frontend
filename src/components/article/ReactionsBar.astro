@@ -1,0 +1,266 @@
+---
+/**
+ * Reactions bar below the article, backed by the PatrikaOS Reactions module.
+ * Config (question + emoji/label set + order) and initial counts come from
+ * SSR; votes go through the /api/graphql proxy (keeps X-PatrikaOS-Key off
+ * the browser). Optimistic +1 on tap, reconciled with the server totals.
+ * Renders nothing when the module is off or has no reactions.
+ * One vote per visitor: the backend sets a patrikaos_reacted cookie as the
+ * receipt — a bar whose postId is in it renders locked (counts visible,
+ * taps disabled). already:true in a vote response locks the same way.
+ */
+import { toNepaliDigits } from "../../lib/format";
+
+interface Props {
+  postId: number;
+  question: string;
+  items: { key: string; emoji: string; label: string }[];
+  initialCounts: Record<string, number>;
+  initialTotal: number;
+}
+
+const { postId, question, items, initialCounts, initialTotal } = Astro.props;
+const show = items.length > 0;
+const pct = (key: string): number =>
+  initialTotal > 0
+    ? Math.round(((initialCounts[key] ?? 0) / initialTotal) * 100)
+    : 0;
+---
+
+{
+  show && (
+    <section
+      class="my-6 rounded-md border border-border bg-card p-4 sm:my-8 sm:p-6"
+      aria-label={question || "प्रतिक्रिया"}
+      data-reactions-bar
+      data-post-id={postId}
+    >
+      {question && (
+        <h2 class="font-mukta px-1 text-center text-base font-bold leading-snug text-foreground text-balance sm:text-lg">
+          {question}
+        </h2>
+      )}
+      <div
+        class="mt-4 grid items-stretch gap-1 sm:mt-6 sm:gap-2"
+        style={`grid-template-columns: repeat(${items.length}, minmax(0, 1fr));`}
+        aria-live="polite"
+      >
+        {items.map((item) => (
+          <button
+            type="button"
+            data-reaction={item.key}
+            data-voted="false"
+            aria-pressed="false"
+            aria-label={`${item.label} — ${toNepaliDigits(pct(item.key))} प्रतिशत`}
+            class="group flex min-h-[88px] min-w-0 flex-col items-center justify-start gap-1.5 rounded-lg bg-transparent px-1 py-2 transition-opacity duration-150 ease-out active:scale-95 motion-reduce:transition-none sm:min-h-[104px] sm:gap-2 sm:py-1"
+          >
+            <span
+              class="font-mukta max-w-full whitespace-nowrap rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-white tabular-nums sm:text-xs"
+              data-reaction-pct={item.key}
+            >
+              {toNepaliDigits(pct(item.key))}%
+            </span>
+            <span
+              class="text-3xl leading-none transition-transform duration-150 ease-out group-hover:scale-110 motion-reduce:transition-none sm:text-4xl lg:text-5xl"
+              aria-hidden="true"
+            >
+              {item.emoji}
+            </span>
+            <span
+              class="font-mukta min-h-[2em] text-center text-xs font-medium leading-tight text-foreground break-words sm:text-sm"
+              data-reaction-label={item.key}
+            >
+              {item.label}
+            </span>
+          </button>
+        ))}
+      </div>
+      <p
+        class="font-mukta mt-3 hidden text-center text-xs text-muted-foreground sm:mt-4"
+        data-vote-notice
+      >
+        तपाईंले पहिले नै मतदान गर्नुभयो
+      </p>
+    </section>
+  )
+}
+
+<style>
+  /* The reader's pick gets the red label (scoped — no Tailwind dependency). */
+  [data-reactions-bar] [data-voted="true"] [data-reaction-label] {
+    color: #dc2626;
+  }
+</style>
+
+<script>
+  const VOTE = `
+    mutation ReactToPost($postId: Int!, $reaction: String!) {
+      reactToPost(input: { postId: $postId, reaction: $reaction }) {
+        success
+        already
+        counts {
+          total
+          counts {
+            key
+            count
+          }
+        }
+      }
+    }
+  `;
+
+  // Backend receipt: patrikaos_reacted cookie holds voted post IDs.
+  const hasVotedCookie = (id: number): boolean => {
+    const m = document.cookie.match(/(?:^|;\s*)patrikaos_reacted=([^;]*)/);
+    if (!m) return false;
+    try {
+      return decodeURIComponent(m[1]).split(/[^0-9]+/).includes(String(id));
+    } catch {
+      return false;
+    }
+  };
+
+  document
+    .querySelectorAll<HTMLElement>("[data-reactions-bar]")
+    .forEach((bar) => {
+      if (bar.dataset.wired) return;
+      bar.dataset.wired = "true";
+
+      const postId = Number(bar.dataset.postId) || null;
+      const votedKey = `patrikaos-reacted-${postId ?? "none"}`;
+      const notice = bar.querySelector<HTMLElement>("[data-vote-notice]");
+
+      const buttons = new Map<string, HTMLButtonElement>();
+      bar.querySelectorAll<HTMLButtonElement>("[data-reaction]").forEach((b) =>
+        buttons.set(b.dataset.reaction!, b),
+      );
+      const labelOf = (key: string): string =>
+        bar.querySelector(`[data-reaction-label="${key}"]`)?.textContent ??
+        key;
+
+      const np = (n: number | string): string =>
+        n.toString().replace(/\d/g, (d) => "०१२३४५६७८९"[Number(d)]);
+
+      // Seed counts from the SSR badges (already Nepali digits).
+      const denp = (s: string): number => {
+        const m = s.match(/[०-९0-9.]+/);
+        if (!m) return 0;
+        return Number(m[0].replace(/[०-९]/g, (d) => String("०१२३४५६७८९".indexOf(d))));
+      };
+      const counts = new Map<string, number>();
+      bar.querySelectorAll<HTMLElement>("[data-reaction-pct]").forEach((el) =>
+        counts.set(el.dataset.reactionPct!, denp(el.textContent)),
+      );
+      let total = [...counts.values()].reduce((a, b) => a + b, 0);
+
+      const render = () => {
+        buttons.forEach((btn, key) => {
+          const c = counts.get(key) ?? 0;
+          const p = total > 0 ? Math.round((c / total) * 100) : 0;
+          btn.querySelector(`[data-reaction-pct="${key}"]`)!.textContent =
+            `${np(p)}%`;
+          btn.setAttribute("aria-label", `${labelOf(key)} — ${np(p)} प्रतिशत`);
+        });
+      };
+
+      const markVoted = (key: string) => {
+        buttons.forEach((btn, k) => {
+          const on = k === key;
+          btn.dataset.voted = on ? "true" : "false";
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+          // The pick stays full-strength; everything else fades so the
+          // reader can see at a glance where they tapped.
+          btn.classList.toggle("opacity-40", !on);
+        });
+      };
+
+      // The cookie is the authoritative receipt. A stored pick without a
+      // cookie is stale (the backend will accept a fresh vote) — drop it
+      // so the bar renders fresh instead of half-faded.
+      let last: string | null = null;
+      try {
+        last = localStorage.getItem(votedKey);
+      } catch {
+        /* private mode — skip */
+      }
+
+      const lock = () => {
+        buttons.forEach((btn) => {
+          btn.disabled = true;
+          btn.classList.remove("group");
+          btn.classList.add("cursor-default");
+          btn.setAttribute("aria-disabled", "true");
+        });
+      };
+
+      const receiptLocked = !!postId && hasVotedCookie(postId);
+      if (receiptLocked) {
+        // Cookie is authoritative: lock right away — otherwise the bar
+        // stays tappable until a doomed round-trip comes back "already".
+        if (last && buttons.has(last)) markVoted(last);
+        else notice?.classList.remove("hidden");
+        lock();
+      } else if (last) {
+        try {
+          localStorage.removeItem(votedKey);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      buttons.forEach((btn, key) => {
+        btn.addEventListener("click", () => {
+          if (!postId || btn.disabled) return;
+          // Optimistic: bump locally, reconcile with server totals.
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+          total += 1;
+          render();
+          markVoted(key);
+          try {
+            localStorage.setItem(votedKey, key);
+          } catch {
+            /* ignore */
+          }
+          fetch("/api/graphql", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: VOTE,
+              variables: { postId, reaction: key },
+            }),
+          })
+            .then((r) => r.json())
+            .then((json) => {
+              const result = json?.data?.reactToPost;
+              if (result?.success && result.counts) {
+                total = result.counts.total ?? 0;
+                (result.counts.counts ?? []).forEach(
+                  (c: { key: string; count: number }) =>
+                    counts.set(c.key, c.count),
+                );
+                lock(); // first vote accepted — no changing the pick
+              } else if (result?.already) {
+                // Receipt says voted (e.g. other browser, cookie set after
+                // load) — take the server totals, lock, and say why.
+                total = result.counts?.total ?? total;
+                (result.counts?.counts ?? []).forEach(
+                  (c: { key: string; count: number }) =>
+                    counts.set(c.key, c.count),
+                );
+                notice?.classList.remove("hidden");
+                lock();
+              } else {
+                counts.set(key, Math.max(0, (counts.get(key) ?? 1) - 1));
+                total = Math.max(0, total - 1);
+              }
+              render();
+            })
+            .catch(() => {
+              counts.set(key, Math.max(0, (counts.get(key) ?? 1) - 1));
+              total = Math.max(0, total - 1);
+              render();
+            });
+        });
+      });
+    });
+</script>

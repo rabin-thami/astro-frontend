@@ -1,0 +1,58 @@
+---
+/**
+ * Horizontal snap rail with prev/next arrows (pure SSR output + one vanilla
+ * script). Ports the reference GridCarousel for the Tech section.
+ */
+interface Props {
+  id?: string;
+  class?: string;
+}
+
+const { id = 'rail', class: className } = Astro.props;
+const trackId = `${id}-track`;
+---
+
+<div class={`relative ${className ?? ''}`}>
+  <div
+    id={trackId}
+    class="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 [scrollbar-width:thin]"
+  >
+    <slot />
+  </div>
+
+  <div class="pointer-events-none absolute inset-y-0 left-0 hidden items-center md:flex">
+    <button
+      type="button"
+      data-rail-prev={trackId}
+      aria-label="Scroll left"
+      class="bg-background/90 border-border pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95"
+    >
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.83 10l3.94 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+    </button>
+  </div>
+  <div class="pointer-events-none absolute inset-y-0 right-0 hidden items-center md:flex">
+    <button
+      type="button"
+      data-rail-next={trackId}
+      aria-label="Scroll right"
+      class="bg-background/90 border-border pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border shadow-md transition-transform active:scale-95"
+    >
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01-.02-1.06L11.17 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('[data-rail-prev]').forEach((btn) => {
+    const track = document.getElementById(btn.getAttribute('data-rail-prev') ?? '');
+    btn.addEventListener('click', () => {
+      track?.scrollBy({ left: -track.clientWidth * 0.8, behavior: 'smooth' });
+    });
+  });
+  document.querySelectorAll('[data-rail-next]').forEach((btn) => {
+    const track = document.getElementById(btn.getAttribute('data-rail-next') ?? '');
+    btn.addEventListener('click', () => {
+      track?.scrollBy({ left: track.clientWidth * 0.8, behavior: 'smooth' });
+    });
+  });
+</script>

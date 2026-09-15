@@ -1,0 +1,107 @@
+---
+export const prerender = false; // Homepage is SSR: fresh per request (60s edge cache via middleware).
+
+import Layout from '../layouts/Layout.astro';
+import FeaturedSection from '../components/home/FeaturedSection.astro';
+import LatestSection from '../components/home/LatestSection.astro';
+import NewsSection from '../components/home/NewsSection.astro';
+import ProvinceSection from '../components/home/ProvinceSection.astro';
+import TechSection from '../components/home/TechSection.astro';
+import SportsSection from '../components/home/SportsSection.astro';
+import { getThemeHead } from '../lib/graphql/queries/getTheme';
+import { getPostsByCategory } from '../lib/graphql/queries/getPostsByCategory';
+import {
+  getHomePageData,
+  HOME_LIMITS,
+} from '../lib/graphql/queries/getHomePageData';
+import { resolveProvinceSlug } from '../lib/wp/provinces';
+import AdSlot from '../components/ads/AdSlot.astro';
+
+const province = Astro.url.searchParams.get('province') ?? undefined;
+
+// Ad banners (WP > Theme > Ads Management): featured-section slots + the
+// mid-page banner between News and Province.
+const themeHead = Astro.locals.themeHead ?? (await getThemeHead());
+
+// Every section feed is independent — one combined round-trip feeds them all
+// (sections previously awaited one after another as Astro rendered top-down).
+const activeProvince = resolveProvinceSlug(province);
+const home = await getHomePageData(
+  activeProvince === '__all__' ? '' : activeProvince,
+);
+
+// Content-ramp fallbacks, mirroring each section's original behavior: only a
+// named category that came back empty re-queries all posts (in parallel).
+const [featured, latest, tech, sports] = await Promise.all([
+  home.featured.length
+    ? home.featured
+    : getPostsByCategory('', HOME_LIMITS.featured),
+  home.latest.length
+    ? home.latest
+    : getPostsByCategory('', HOME_LIMITS.latest),
+  home.tech.length ? home.tech : getPostsByCategory('', HOME_LIMITS.tech),
+  home.sports.length ? home.sports : getPostsByCategory('', HOME_LIMITS.sports),
+]);
+---
+
+<Layout title="Patrika — Fast, factual, digital news.">
+  <main class="font-mukta mx-auto w-full max-w-7xl py-8 sm:py-12 space-y-4">
+    <FeaturedSection
+      posts={featured}
+      inlineAd={themeHead.ads.featuredInline}
+      endAd={themeHead.ads.featuredEnd}
+    />
+    <LatestSection posts={latest} railAds={home.railAds} />
+    <hr class="border-border" />
+    <NewsSection posts={home.allPosts} />
+    <hr class="border-border" />
+
+    {/* Mid-page leaderboard — managed in PatrikaOS > Theme > Ads Management. */}
+    {themeHead.ads.afterNews.enabled && (
+      <div class="px-4 sm:px-6">
+        <AdSlot
+          ad={themeHead.ads.afterNews}
+          class="flex aspect-[123/10] w-full items-center justify-center"
+          placeholder="Advertisement"
+        />
+        <hr class="border-border mt-5" />
+      </div>
+    )}
+
+    <ProvinceSection
+      selected={province}
+      posts={home.provinceMain}
+      popular={home.provincePopular}
+    />
+    <hr class="border-border" />
+
+    {/* Mid-page leaderboard — managed in PatrikaOS > Theme > Ads Management. */}
+    {themeHead.ads.afterProvince.enabled && (
+      <div class="px-4 sm:px-6">
+        <AdSlot
+          ad={themeHead.ads.afterProvince}
+          class="flex aspect-[123/10] w-full items-center justify-center"
+          placeholder="Advertisement"
+        />
+        <hr class="border-border mt-5" />
+      </div>
+    )}
+
+    <TechSection posts={tech} />
+    <hr class="border-border" />
+
+    {/* Mid-page leaderboard — managed in PatrikaOS > Theme > Ads Management. */}
+    {themeHead.ads.afterTech.enabled && (
+      <div class="px-4 sm:px-6">
+        <AdSlot
+          ad={themeHead.ads.afterTech}
+          class="flex aspect-[123/10] w-full items-center justify-center"
+          placeholder="Advertisement"
+        />
+        <hr class="border-border mt-5" />
+      </div>
+    )}
+
+    <SportsSection posts={sports} />
+  </main>
+</Layout>

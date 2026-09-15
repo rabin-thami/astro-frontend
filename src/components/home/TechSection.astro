@@ -1,0 +1,43 @@
+---
+import type { WPCardPost } from '../../lib/graphql/queries/getPostsByCategory';
+import SmartLink from '../ui/SmartLink.astro';
+import CardOverlay from '../cards/CardOverlay.astro';
+import RailCarousel from '../ui/RailCarousel.astro';
+
+interface Props {
+  /** Section feed — fetched by the page in its single combined batch. */
+  posts: WPCardPost[];
+}
+
+const { posts } = Astro.props;
+---
+
+{posts.length > 0 && (
+  <section class="space-y-4 px-4 sm:px-6">
+    <div class="flex items-center justify-between border-b-2 border-primary pb-2">
+      <h2 class="text-3xl font-semibold font-khand text-primary">
+        सूचना-प्रविधि
+      </h2>
+      <SmartLink href="/tech" aria-label="View all tech news">
+        <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor" class="text-primary" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01-.02-1.06L11.17 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+      </SmartLink>
+    </div>
+    <RailCarousel id="tech-rail">
+      {posts.map((post) => (
+        <div class="w-[260px] shrink-0 snap-start">
+          <CardOverlay
+            title={post.title}
+            href={post.link}
+            imageUrl={post.featuredImage?.node.sourceUrl}
+            imageWidth={post.featuredImage?.node.mediaDetails?.width ?? undefined}
+            imageHeight={post.featuredImage?.node.mediaDetails?.height ?? undefined}
+            imageAlt={post.featuredImage?.node.altText ?? post.title}
+            timestamp={post.dateGmt}
+            size="md"
+            aspectRatio="3/4"
+          />
+        </div>
+      ))}
+    </RailCarousel>
+  </section>
+)}

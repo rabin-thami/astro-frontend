@@ -1,0 +1,129 @@
+---
+import { Image } from "astro:assets";
+import SafeImage from "../ui/SafeImage.astro";
+import type { BlockOf } from "../../lib/wp/types";
+import { htmlToText } from "../../lib/richtext/strip";
+import RichText from "../../lib/richtext/RichText.astro";
+
+interface Props {
+  block: BlockOf<"CoreImage">;
+}
+const { block } = Astro.props;
+const { url, alt, caption } = block.attributes;
+// WP media often ships with empty alt; the editor-written caption is a
+// better screen-reader label than announcing the image as decorative.
+const altText = alt || htmlToText(caption ?? "");
+const iid = `image-${block.clientId}`;
+---
+
+{
+  url && (
+    <figure class="my-6">
+      <button
+        type="button"
+        class="mx-auto block w-fit cursor-zoom-in"
+        data-image-open
+        aria-label="तस्बिर ठूलो देखाउनुहोस्"
+      >
+        <Image
+          src={url}
+          alt={altText}
+          width={block.mediaDetails?.width ?? 1200}
+          height={block.mediaDetails?.height ?? 630}
+          loading="lazy"
+          class="mx-auto max-w-full h-auto rounded-md"
+        />
+      </button>
+      {caption ? (
+        <figcaption class="mt-2 text-center text-sm text-muted-foreground">
+          <RichText html={caption} />
+        </figcaption>
+      ) : (
+        altText && (
+          <figcaption class="mt-2 text-center text-sm text-muted-foreground">
+            {altText}
+          </figcaption>
+        )
+      )}
+    </figure>
+  )
+}
+
+{
+  url && (
+    <dialog
+      class="fixed inset-0 h-full max-h-full w-full max-w-full bg-black/90 p-4 [&::backdrop]:bg-black/80"
+      data-image-lightbox={iid}
+      aria-label="तस्बिर"
+    >
+      <div class="lightbox-panel relative flex h-full flex-col items-center justify-center gap-3">
+        <SafeImage
+          src={url}
+          class="max-h-[80vh] w-auto max-w-full rounded-md object-contain"
+          data-lightbox-img
+          alt={altText}
+        />
+        {caption && (
+          <p class="max-w-2xl text-center text-sm text-white/70">
+            <RichText html={caption} />
+          </p>
+        )}
+        <button
+          type="button"
+          class="absolute inset-x-0 top-0 ml-auto grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white transition-colors duration-150 ease-out hover:bg-white/20 active:scale-95 motion-reduce:transition-none"
+          data-lightbox-close
+          aria-label="बन्द गर्नुहोस्"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+    </dialog>
+  )
+}
+
+<style>
+  dialog[data-image-lightbox] .lightbox-panel {
+    animation: img-lb-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @keyframes img-lb-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog[data-image-lightbox] .lightbox-panel {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-image-open]").forEach((btn) => {
+    const figure = btn.closest("figure");
+    const lightbox = figure?.querySelector<HTMLDialogElement>(
+      "[data-image-lightbox]",
+    );
+    if (!lightbox || lightbox.dataset.wired) return;
+    lightbox.dataset.wired = "true";
+
+    const img = lightbox.querySelector<HTMLImageElement>("[data-lightbox-img]")!;
+    const tile = btn.querySelector("img");
+    if (tile) {
+      img.src = tile.src;
+      img.alt = tile.alt;
+    }
+
+    btn.addEventListener("click", () => lightbox.showModal());
+    lightbox
+      .querySelector("[data-lightbox-close]")
+      ?.addEventListener("click", () => lightbox.close());
+    // Backdrop click closes; clicks on the image itself do not.
+    lightbox.addEventListener("click", (e) => {
+      if (e.target === lightbox) lightbox.close();
+    });
+    lightbox.addEventListener("close", () => btn.focus());
+  });
+</script>

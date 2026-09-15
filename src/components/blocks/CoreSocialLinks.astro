@@ -1,0 +1,22 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import CoreSocialLink from "./CoreSocialLink.astro";
+
+interface Props {
+  block: BlockOf<"CoreSocialLinks">;
+}
+const { block } = Astro.props;
+const links = block.innerBlocks.filter(
+  (b): b is BlockOf<"CoreSocialLink"> => b.__typename === "CoreSocialLink",
+);
+---
+
+{
+  links.length > 0 && (
+    <ul role="list" aria-label="Social links" class="my-4 flex flex-wrap gap-3">
+      {links.map((l) => (
+        <CoreSocialLink block={l as never} />
+      ))}
+    </ul>
+  )
+}

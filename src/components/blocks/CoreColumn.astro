@@ -1,0 +1,25 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import BlockRenderer from "./BlockRenderer.astro";
+
+interface Props {
+  block: BlockOf<"CoreColumn">;
+}
+const { block } = Astro.props;
+const { verticalAlignment } = block.attributes as {
+  verticalAlignment?: string;
+};
+// flex-col: justify-* controls the vertical axis (items-* would be horizontal).
+const justifyClass =
+  verticalAlignment === "center"
+    ? "justify-center"
+    : verticalAlignment === "bottom"
+      ? "justify-end"
+      : "justify-start";
+---
+
+<div
+  class={`flex min-w-0 flex-col p-3 sm:p-4 md:p-6 [&>p]:text-[1.35rem] ${justifyClass}`}
+>
+  {block.innerBlocks.map((b) => <BlockRenderer block={b} />)}
+</div>

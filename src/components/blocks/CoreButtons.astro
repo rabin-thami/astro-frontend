@@ -1,0 +1,29 @@
+---
+import type { BlockOf } from "../../lib/wp/types";
+import CoreButton from "./CoreButton.astro";
+
+interface Props {
+  block: BlockOf<"CoreButtons">;
+}
+const { block } = Astro.props;
+const { align } = block.attributes;
+const buttons = block.innerBlocks.filter(
+  (b): b is BlockOf<"CoreButton"> => b.__typename === "CoreButton",
+);
+const alignClass =
+  align === "right"
+    ? "justify-end"
+    : align === "center"
+      ? "justify-center"
+      : "justify-start";
+---
+
+{
+  buttons.length > 0 && (
+    <div class={`my-6 flex flex-wrap gap-3 ${alignClass}`}>
+      {buttons.map((b) => (
+        <CoreButton block={b} />
+      ))}
+    </div>
+  )
+}

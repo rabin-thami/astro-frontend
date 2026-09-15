@@ -1,0 +1,29 @@
+---
+/**
+ * Normalizes absolute WP URLs to relative routes; plain <a> (no client-side
+ * router in Astro, but the relative rewrite + external target logic ports
+ * from the reference's SmartLink).
+ */
+import { resolveWpLink } from "../../lib/wp/url";
+
+interface Props {
+  href: string | null | undefined;
+  class?: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
+const { href, class: className, title, ...rest } = Astro.props;
+
+// Absolute same-origin WP URLs become relative routes; other absolute
+// (or mailto:/tel:) links open as external.
+const { href: normalized, external: isExternal } = resolveWpLink(href);
+---
+
+<a
+  href={normalized}
+  class={className}
+  title={title}
+  {...isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {}}
+  {...rest}><slot /></a
+>
